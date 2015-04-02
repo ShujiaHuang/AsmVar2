@@ -4,6 +4,8 @@ This module contain classes and functions for general haplotype
 import copy
 import logging
 
+import variantutil as vutil
+
 logger = logging.getLogger('Log')
 
 class Haplotype(object):
@@ -30,9 +32,11 @@ class Haplotype(object):
         chromlen         = ref_stream_fa.get_reference_length(chrom)
 
         self.chrom       = chrom
-        self.start_pos   = max(1, start_pos)
-        self.end_pos     = min(end_pos, chromlen)
         self.buffer_size = min(500, 2 * max_read_length) # a reasonable size
+        self.start_pos   = max(1, start_pos)             # Window start 
+        self.end_pos     = min(end_pos, chromlen)        # window end
+        self.hap_start   = max(1, self.start_pos - self.buffer_size)
+        self.hap_end     = min(self.end_pos + self.buffer_size, chromlen)
         self.fa_stream   = ref_stream_fa
         self.variants    = copy.copy(variants) # Must use copy!!
         self.sequence    = None # The haplotype sequence
@@ -42,19 +46,24 @@ class Haplotype(object):
         if variants is None or len(variants) == 0:
 
             self.sequence = ref_stream_fa.fetch(self.chrom,
-                                                exdstart, # 0-based
-                                                exdend)
+                                                self.hap_start - 1,
+                                                self.hap_end)
         else:
             # Left side of variants, donot include self.start_pos base
-            start1, end1 = exdstart, max(self.start_pos - 1, 1)
+            start1, end1 = self.hap_start, max(self.start_pos - 1, 1)
             # Right side of variants, donot include self.end_pos base
-            start2, end2 = self.end_pos, exdend
+            start2, end2 = self.end_pos, self.hap_end
             
-            # CAUTION: 'start1' and 'start2' is 0-base
-            leftseq  = ref_stream_fa.fetch(self.chrom, start1, end1)
-            rightseq = ref_stream_fa.fetch(self.chrom, start2, end2)
-
+            # CAUTION: 'start1' and 'start2' treat as 0-base
+            leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
+            rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
+
+    def homoRunLength(self):
+        """
+        I don't think we need this function here!
+        """
+        return [vutil.homoRunForOneVariant(self.fa_stream, v) for v in self.variants]
 
     def _getMutatedSequence(self):
         """
