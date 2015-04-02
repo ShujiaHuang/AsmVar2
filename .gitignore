@@ -1,0 +1,8 @@
+*.py[co]
+.*.py.*
+.*.swp
+*.sh
+.coverage
+setup.py
+bin/
+build/
