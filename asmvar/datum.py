@@ -1,8 +1,9 @@
 """
 This module contain all the usefull globle values for AsmVar2
 """
+import numpy as np
 
-class Genotype(object):
+class CommonDatum(object):
 
     def __init__(self):
         base_error = [2.9e-5, 2.9e-5, 2.9e-5, 2.9e-5, 4.3e-5,
@@ -12,12 +13,9 @@ class Genotype(object):
         # Indel errors for each base
         self.base_indel_error = base_error + extend_err
         # Convert the base indel error value into ASCII
-        self.indel_error_qual = ''.join([chr(int(33.5 + 10 * log((i + 1) * q) / log(0.1)))
-                                for i, q in enumerate(self.base_indel_error)])
+        self.indel_error_qual = ''.join([chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1)))
+                                        for i, q in enumerate(self.base_indel_error)])
 
- class Align(object):
-
-    def __init__(self):
         self.hashmer  = 7 # The unit size of hash
         self.hashsize = 4 ** self.hashmer
         # The max allow size for aligniing process. 
