@@ -40,6 +40,7 @@ class Haplotype(object):
         self.fa_stream   = ref_stream_fa
         self.variants    = copy.copy(variants) # Must use copy!!
         self.sequence    = None # The haplotype sequence
+        self.hash        = None
 
         exdstart = max(1, self.start_pos - self.buffer_size) # extend start
         exdend   = min(self.end_pos + self.buffer_size, chromlen) # extend end
@@ -58,6 +59,19 @@ class Haplotype(object):
             leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
             rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
+
+    def __hash__(self):
+        """
+        This function allows haplotypes to be hashed, and so stored in a set 
+        or dictionary. The supporting reads are not included in the hashing, 
+        as we want two haplotypes to give the same hash id if they have the 
+        same positions and sequences.
+        """
+        if self.hash is None:
+            self.hash = hash((self.chrom, self.start_pos, self.end_pos, 
+                              slef.sequence))
+
+        return self.hash
 
     def homoRunLength(self):
         """
