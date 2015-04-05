@@ -104,18 +104,18 @@ class VariantCandidateReader(object):
                         
                         # Trim the leading bases, should keep at lest 1 base 
                         while (alt.sequence[0].upper() == ref[0].upper() and 
-                               len(ref) > 1 and alt.__len__() > 1):
+                               len(ref) > 1 and len(alt) > 1):
                             alt.sequence = alt.sequence[1:]
                             ref  = ref[1:]
                             pos += 1
 
                         # Trim the trailing bases, should keep at lest 1 base
                         while (alt.sequence[-1].upper() == ref[-1].upper() and
-                               len(ref) > 1 and alt.__len__() > 1):
+                               len(ref) > 1 and len(alt) > 1):
                             alt.sequence = alt.sequence[:-1]
                             ref = ref[:-1]
 
-                        if len(ref) > 0 and alt.__len__() > 0:
+                        if len(ref) > 0 and len(alt) > 0:
                             record.POS = pos
                             record.REF = ref
                             record.ALT = [alt]
@@ -129,6 +129,14 @@ class VariantCandidateReader(object):
 
         # It's a list of '_Record' which type is defined by 'PyVCF'
         return varlist
+
+def get_sequence_context(fa_stream, variant):
+    """
+    Return the sequence surrounding this variant's position.
+    """
+
+    start = max(0, variant.POS - 10)
+    return fa_stream.fetch(variant.CHROM, start, variant.POS + 10)
 
 def homoRunForOneVariant(fa_stream, variant):
 
@@ -175,7 +183,7 @@ def _calHrunSize(sequence):
             hr += 1
         else:
             break
-    # The hr == 1 means there's not homopolymer run
+    # The hr == 1 means there's not a homopolymer run
     if hr == 1: hr = 0
 
     return hr
