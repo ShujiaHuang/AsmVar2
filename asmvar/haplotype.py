@@ -28,9 +28,10 @@ class Haplotype(object):
     """
     def __init__(self, ref_stream_fa, chrom, start_pos, end_pos, 
                  max_read_length = 100, variants = None):
-
+        """
+        Initial the Haplotype
+        """
         chromlen         = ref_stream_fa.get_reference_length(chrom)
-
         self.chrom       = chrom
         self.buffer_size = min(500, 2 * max_read_length) # a reasonable size
         self.start_pos   = max(1, start_pos)             # Window start 
@@ -40,10 +41,10 @@ class Haplotype(object):
         self.fa_stream   = ref_stream_fa
         self.variants    = copy.copy(variants) # Must use copy!!
         self.sequence    = None # The haplotype sequence
-        self.hash        = None
+        self.hash_id     = None # A hash id use for identified this haplotype
+        self.seq_hash    = None # Encode a hash table for self.sequence used 
+                                # for mapping when we needed
 
-        exdstart = max(1, self.start_pos - self.buffer_size) # extend start
-        exdend   = min(self.end_pos + self.buffer_size, chromlen) # extend end
         if variants is None or len(variants) == 0:
 
             self.sequence = ref_stream_fa.fetch(self.chrom,
@@ -68,7 +69,7 @@ class Haplotype(object):
         same positions and sequences.
         """
         if self.hash is None:
-            self.hash = hash((self.chrom, self.start_pos, self.end_pos, 
+            self.hash_id = hash((self.chrom, self.start_pos, self.end_pos, 
                               slef.sequence))
 
         return self.hash
