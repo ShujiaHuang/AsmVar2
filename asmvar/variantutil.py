@@ -45,7 +45,8 @@ class VariantCandidateReader(object):
                     'index the compressed file' % (filename))
                 logger.error(
                     'This should create an index file: %s.gz.tbi\n' % (filename))
-                #raise ValueError('\nInput VCF source file %s was not compressed and indexed' % (filename))
+                #raise ValueError('\nInput VCF source file %s was not compressed '
+                #                 'and indexed' % (filename))
             else:
                 # How To: how to close the open vcf files' handle?
                 self.vcf_readers.append(vcf.Reader(filename = filename))
