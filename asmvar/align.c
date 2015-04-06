@@ -13,7 +13,7 @@
 const short n_score = 0*4;
 
 // define the DEBUG symbol to print the DP table and various running variables
-//#define DEBUG 1
+// #define DEBUG 1
 
 #define printxmm_0(label,var) \
   printf(" %s [0]=%4x %5i [1]=%4x %5i [2]=%4x %5i [3]=%4x %5i [4]=%4x %5i [5]=%4x %5i [6]=%4x %5i [7]=%4x %5i\n", \
@@ -322,6 +322,9 @@ int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, 
   if (!traceback) {
     return (minscore + 0x8000) >> 2;
   }
+//printf("localGapOpen: %s\n", localgapopen);
+//printf("\n--(Good)---- Here (1/2)------\n"); // Debug
+//printf("--(Good)---- Here (2/2)------\n"); // Debug
 
   s = minscoreidx;    // point to the dummy match transition
   short i = s/2 - len2;
