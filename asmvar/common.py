@@ -16,8 +16,8 @@ class SeqHashTable(object):
         """
         Initial hash
         """
-        self.hashmer    = hashmer # The hash size
-        self.hash_table = {}
+        self.hashmer      = hashmer # The hash size
+        self.hash_table   = {}
         self.hash_pointer = []
 
         # Creat the sequence hash table and index
