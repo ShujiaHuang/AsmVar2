@@ -4,15 +4,20 @@ from pysam import FastaFile
 import asmvar.variantutil as vutil
 from asmvar.variantutil import VariantCandidateReader as vcreader
 from asmvar.haplotype import Haplotype as Hap
+import asmvar.datum as dm
+import asmvar.common as com
 
 def setup():
     print "SETUP!"
 
+"""
 def teardown():
     print "TEAR DOWN!"
 
 def test_basic():
     print "I RAN!"
+"""
+
 
 def test_VariantCandidateReader():
 
@@ -39,6 +44,7 @@ def test_VariantCandidateReader_variants():
     assert_equal(ref_case_chr1, [i.REF for i in varlist])
     assert_equal(alt_case_chr1, [i.ALT[0].sequence for i in varlist])
 
+
     varlist = vcf_readers.variants('chr2')
     pos_case_chr2 = [156, 505, 784, 1344]
     ref_case_chr2 = ['A', 'A', 'C', 'A']
@@ -46,8 +52,18 @@ def test_VariantCandidateReader_variants():
 
     assert_equal(pos_case_chr2, [i.POS for i in varlist])
     assert_equal(ref_case_chr2, [i.REF for i in varlist])
+    assert_equal(alt_case_chr2, [str(i.ALT[0]) for i in varlist])
     assert_equal(alt_case_chr2, [i.ALT[0].sequence for i in varlist])
+
+    print '\n',str(i.ALT[0]) + 'A', '\t', i.ALT[0].sequence, '\n'
     
+def test_vutil_get_sequence_context():
+
+    fa = FastaFile('tests/data/ex1.fa')
+    vcf_readers = vcreader(['tests/data/ex1.vcf.gz'], 'options')
+    varlist = vcf_readers.variants('chr2')
+    vutil.get_sequence_context(fa, varlist[0])
+
 def test_vutil_homoRunForOneVariant():
 
     assert_equal(vutil._calHrunSize('tcggg'), 0)
@@ -73,8 +89,56 @@ def test_vutil_homoRunForOneVariant():
     hr = vutil.homoRunForOneVariant(fa, varlist[2])
     assert_equal(0, hr)
 
+def test_datum():
+    
+    comdata = dm.CommonDatum()
+    print 'indel_error_qual: ', comdata.indel_error_qual
+    print 'hashmer: ', comdata.hashmer
+    print 'hashsize: ', comdata.hashsize
+    print 'max_align_size: ', comdata.max_align_size
+    print 'indel_error_qual: ', comdata.indel_error_qual, '\n', dm.CommonDatum().indel_error_qual
+
+def test_common_SeqHashTable():
+
+    ht  = com.SeqHashTable('') # Empty
+    seq = 'ATCGCCGcccNatcgccgcccc'
+    # Build the hash table for 'seq'
+    ht  = com.SeqHashTable(seq)
+
+    print '\n', ht.hash_table, '\n'
+    for id in ht.hash_pointer:
+        print id, '=>', ht.hash_table[id]
+
 def test_Haplotype():
 
     fa  = FastaFile('tests/data/ex1.fa')
     hap = Hap(fa, 'chr1', 1, 20)
+
+def test_align_fastAlignmentRoutine():
+
+    import ctypes
+    align = ctypes.CDLL('asmvar/align.so')
+
+    print '\n\n** Now testing the align module **\n\n'
+
+    #seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTCCATGTACACACGCTGTCCTATGTACTTAT'
+    seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTGA'
+    seq2 = 'GGGAACAGGGGGGTGCACTAATGCGCTCCACGCC'
+    qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,'
+
+    print seq1,'\n',seq2,'\n\n'
+
+    aln1 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
+    aln2 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
+    local_gap_open = 'NKJHFA=854210/.-,,+**))(((\'\'\'&&&%%%$$$$#####"""""'
+    firstpos = 0
+    score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2, firstpos)
+
+    print '\n\n*** After Align ***'
+    print 'align score: ', score
+    print 'align1: ', aln1, len(aln1)
+    print 'align2: ', aln2, len(aln2)
+    print '\n'
+    
+
 
