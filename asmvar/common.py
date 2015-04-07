@@ -4,19 +4,16 @@ Common functions
 import os
 import ctypes
 
-import datum as dm
-
 dir = os.path.dirname(os.path.abspath(__file__))
 encode = ctypes.CDLL(dir + '/encode.so')
 
 class SeqHashTable(object):
 
-    # dm.CommonDatum().hashmer is == 7
-    def __init__(self, seq, hashmer = dm.CommonDatum().hashmer):
+    def __init__(self, seq, hashmer):
         """
         Initial hash
         """
-        self.hashmer      = hashmer # The hash size
+        self.hashmer      = hashmer # The hash size, should be integer
         self.hash_table   = {}
         self.hash_pointer = []
 
