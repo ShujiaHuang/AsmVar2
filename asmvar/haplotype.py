@@ -61,6 +61,9 @@ class Haplotype(object):
             rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
 
+    def __len__(self):
+        return len(self.sequence) # The sequence's size
+
     def __hash__(self):
         """
         This function allows haplotypes to be hashed, and so stored in a set 
@@ -72,7 +75,7 @@ class Haplotype(object):
             self.hash_id = hash((self.chrom, self.start_pos, self.end_pos, 
                               slef.sequence))
 
-        return self.hash
+        return self.hash_id
 
     def homoRunLength(self):
         """
