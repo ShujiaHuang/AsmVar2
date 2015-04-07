@@ -1,11 +1,13 @@
 from nose.tools import *
 from pysam import FastaFile
+import pysam
 
 import asmvar.variantutil as vutil
 from asmvar.variantutil import VariantCandidateReader as vcreader
 from asmvar.haplotype import Haplotype as Hap
 import asmvar.datum as dm
 import asmvar.common as com
+from asmvar.read import Read
 
 def setup():
     print "SETUP!"
@@ -98,12 +100,25 @@ def test_datum():
     print 'max_align_size: ', comdata.max_align_size
     print 'indel_error_qual: ', comdata.indel_error_qual, '\n', dm.CommonDatum().indel_error_qual
 
+def test_read():
+
+    bam = pysam.AlignmentFile('tests/data/ex1.bam')
+    read = Read()
+    reads = []
+
+    print '\n'
+    for r in bam.fetch('chr1', 99, 100):
+        reads.append(Read(r))
+        print reads[-1].name, reads[-1].seqs, reads[-1].qual, reads[-1].seq_hash, len(reads[-1])
+    
+
+
 def test_common_SeqHashTable():
 
     ht  = com.SeqHashTable('') # Empty
     seq = 'ATCGCCGcccNatcgccgcccc'
     # Build the hash table for 'seq'
-    ht  = com.SeqHashTable(seq)
+    ht  = com.SeqHashTable(seq, dm.CommonDatum().hashmer)
 
     print '\n', ht.hash_table, '\n'
     for id in ht.hash_pointer:
