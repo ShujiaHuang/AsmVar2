@@ -38,5 +38,7 @@ class SeqHashTable(object):
             # Stored all the index together as a array if the sequence are 
             # the same! But the hash key cannot in order as the sequence
             self.hash_table[hash_id] = self.hash_table.get(hash_id, []) + [i]
-            self.hash_pointer.append(hash_id) # This is in order as sequence!
+			# This is a list to keep in order as sequence! And we should go 
+            # thought the hash by scan this array to keep the right order!
+            self.hash_pointer.append(hash_id)
 
