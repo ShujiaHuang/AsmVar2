@@ -27,7 +27,7 @@ class Haplotype(object):
                   ``variantutil``. [None]
     """
     def __init__(self, ref_stream_fa, chrom, start_pos, end_pos, 
-                 max_read_length = 100, variants = None):
+                 max_read_length, variants = None):
         """
         Initial the Haplotype
         """
@@ -60,10 +60,14 @@ class Haplotype(object):
             leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
             rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
+        """
         # Record the positions' mapping depth of haplotype, but this is much 
         # longer than the haplotype sequence
         size = 2 * (self.sequence + max_read_length) 
         self.map_count = [0 for i in range(size)]
+        """
+        # Record the positions' mapping depth of haplotype
+        self.map_depth = [0 for i in range(len(self.sequence))]
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
