@@ -60,6 +60,10 @@ class Haplotype(object):
             leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
             rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
+        # Record the positions' mapping depth of haplotype, but this is much 
+        # longer than the haplotype sequence
+        size = 2 * (self.sequence + max_read_length) 
+        self.map_count = [0 for i in range(size)]
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
