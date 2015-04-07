@@ -9,13 +9,16 @@ encode = ctypes.CDLL(dir + '/encode.so')
 
 class SeqHashTable(object):
 
-    def __init__(self, seq, hashmer):
+    def __init__(self, seq, hashmer = None):
         """
         Initial hash
         """
         self.hashmer      = hashmer # The hash size, should be integer
         self.hash_table   = {}
         self.hash_pointer = []
+
+        if hashmer is None: 
+            return
 
         # Creat the sequence hash table and index
         self._set_hash(seq)
