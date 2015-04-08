@@ -66,8 +66,13 @@ class Haplotype(object):
         size = 2 * (self.sequence + max_read_length) 
         self.map_count = [0 for i in range(size)]
         """
-        # Record the positions' mapping depth of haplotype
+        # Record the mapping depth for each position of haplotype
         self.map_depth = [0 for i in range(len(self.sequence))]
+        # Record the score cost of gap open. Use it for read realign process
+        # The size of ``gap_open`` should be the same as self.sequence, but
+        # now I'll assign it to be None, and I'll assign a list for it when
+        # we need it.
+        self.gap_open = None
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
