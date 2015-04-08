@@ -10,7 +10,7 @@
 
 // Add by Shujia Huang 2015-04-08
 typedef struct tAlignTag {
-    short score;
+    int score;
     int pos;
 } AlignTag, *AlignTagPointer;
 // Add End

@@ -63,8 +63,7 @@ AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const c
 
   // Add by Shujia Huang 2015-04-08
   AlignTagPointer align_tag_p = (AlignTagPointer)malloc(sizeof(AlignTag));
-  align_tag_p->score = -1; // Initial -1 means NONE
-  align_tag_p->pos   = -1; // Initial -1 menas NONE
+  align_tag_p->pos = -1; // Initial -1 menas NONE
   // Add end
 
   const short gap_extend = gapextend*4;
