@@ -16,6 +16,10 @@ class CommonDatum(object):
         self.indel_error_qual = ''.join([chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1)))
                                         for i, q in enumerate(self.base_indel_error)])
 
+        # Alignment score matrix
+        self.gap_extend = 3
+        self.nucprior   = 2
+
         self.hashmer  = 7 # The unit size of hash
         self.hashsize = 4 ** self.hashmer
         # The max allow size for aligniing process. 
