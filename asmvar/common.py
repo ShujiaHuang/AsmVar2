@@ -35,9 +35,9 @@ class SeqHashTable(object):
 
             # Return an integer to represent the sequence
             hash_id = encode.hashEncode(seq[i:i + self.hashmer], self.hashmer)
-            # Stored all the index together as a array if the sequence are 
-            # the same! But the hash key cannot in order as the sequence
-            # The hash value is a list for recording the index of seq except
+            # Stored all the index together as an array if the sequence are 
+            # the same! But the hash key cannot keep the order as the sequence.
+            # Remember: The hash value is a list of the index of the seq except 
             # the tail(self.hashmer)
             self.hash_table[hash_id] = self.hash_table.get(hash_id, []) + [i]
 			# This is a list to keep in order as sequence! And we should go 
