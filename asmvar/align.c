@@ -3,6 +3,8 @@
 /*****************************************************************************************************************
  This code is copyright (c) Gerton Lunter, Dec 2009
  It may not be distributed, made public, or used in other software without the permission of the copyright holder
+
+ Modify By Shujia Huang 2015-04-08
 ******************************************************************************************************************/
 
 #include <emmintrin.h>
@@ -42,9 +44,8 @@ const short n_score = 0*4;
 
 //_________________________________________________________________________________________________
 
-
-int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, int len1, int len2, int gapextend, int nucprior,
-			 const char* localgapopen, char* aln1, char* aln2, int* firstpos) {
+AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, int len1, int len2, int gapextend, int nucprior,
+			 const char* localgapopen, char* aln1, char* aln2) {
 
   // seq2 is the read; the shorter of the sequences
   // no checks for overflow are done
@@ -59,6 +60,12 @@ int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, 
   // make sure that special cases at beginning and end (initialization!)
   // do not mix.  (Todo: Check this assertion.)
   assert( len1 > 8);
+
+  // Add by Shujia Huang 2015-04-08
+  AlignTagPointer align_tag_p = (AlignTagPointer)malloc(sizeof(AlignTag));
+  align_tag_p->score = -1; // Initial -1 means NONE
+  align_tag_p->pos   = -1; // Initial -1 menas NONE
+  // Add end
 
   const short gap_extend = gapextend*4;
   const short nuc_prior = nucprior*4;
@@ -320,11 +327,9 @@ int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, 
 
   // Backtrace.
   if (!traceback) {
-    return (minscore + 0x8000) >> 2;
+    align_tag_p->score = (minscore + 0x8000) >> 2;
+    return align_tag_p;
   }
-//printf("localGapOpen: %s\n", localgapopen);
-//printf("\n--(Good)---- Here (1/2)------\n"); // Debug
-//printf("--(Good)---- Here (2/2)------\n"); // Debug
 
   s = minscoreidx;    // point to the dummy match transition
   short i = s/2 - len2;
@@ -367,8 +372,6 @@ int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, 
   aln1[alnidx] = 0;
   aln2[alnidx] = 0;
 
-  if (firstpos) *firstpos = x;
-
   // reverse them
   int j;
 
@@ -382,16 +385,20 @@ int fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, 
     aln2[j] = y;
   }
 
+  // Add by Shujia Huang 2015-04-08
+  align_tag_p->score = (minscore + 0x8000) >> 2;
+  align_tag_p->pos   = x;
+
 #ifdef DEBUG
   printf("aln1 %s\n", aln1);
   printf("aln2 %s\n", aln2);
-  printf("score %u\n", (minscore + 0x8000) >> 2 );
+  printf("score %u\n", (minscore + 0x8000) >> 2);
+  printf ("**** In function score = %d, position = %d ********\n", align_tag_p->score, align_tag_p->pos);
 #endif
-  
-  return (minscore + 0x8000) >> 2;
+  // Add End
+
+  return align_tag_p;
 }
-
-
 
 //_________________________________________________________________________________________________
 
