@@ -18,7 +18,7 @@ align  = ctypes.CDLL(dir + '/align.so')  # The alignment module written by C
 
 # Create a class to get the alignment information which record in a 
 # c structure data type in align.fastAlignmentRoutine
-# Thinks for: http://blog.csdn.net/joeblackzqq/article/details/10441017
+# Thinks for the help of ``http://blog.csdn.net/joeblackzqq/article/details/10441017``
 class AlignTagPointer(ctypes.Structure):
 	_fields_ = [("score", ctypes.c_int), ("pos", ctypes.c_int)]
 align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
@@ -56,7 +56,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
         # The alignemnt position in pysam is 0-base, shift r.pos to be 1-base
         score = singleRead2Haplotype(haplotype, 
                                      reads_collection[r_identify],
-                                     r.pos + 1) # Alignment position
+                                     r.pos + 1) # read's alignment position
 
     
 def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
@@ -109,13 +109,12 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
     best_ali_score = 1000000 # A big enough bad score
     best_ali_pos   = -1
     firstpos       = 0
-    idx            = {}
     if max_hit > 0:
         # Go through all the positions of haplotype.sequence 
         for i, d in enumerate(haplotype.map_depth):
             # Now let's find the best anchor position!
             # 'i' could represent the index of read in haplotype
-            is_inside = i + hap_len_for_align < len(haplotype)
+            is_inside = i + hap_len_for_align <= len(haplotype)
             if d == max_hit and is_inside: 
                 # Just start from the most possible position
                 read_start_in_hap = max(0, i - 8) # 0-base system
@@ -130,13 +129,14 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
                                                  COMDM.nucprior,
                                                  haplotype.gap_open[s:e],
                                                  aln1, aln2)
+                # ali.contents.pos == -1 means None in ``fastAlignmentRoutine``!
+                # so that we should not refresh ``firstpos``
                 if ali.contents.pos != -1: 
                     firstpos = ali.contents.pos
 
-                # calculate contribution to alignment score of mismatches and indels 
-                # in flank, and adjust score. 
-                # short circuit if calculation is unnecessary
-                # do_calcu_flank_score    
+                # calculate contribution to alignment score of mismatches
+                # and indels in flank, and adjust score. short circuit if
+                # calculation is unnecessary
                 if do_calcu_flank_score and 
                    haplotype.buffer_size and 
                    ali.contents.score > 0:
@@ -176,6 +176,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
                                          COMDM.nucprior, 
                                          haplotype.gap_open[s:e],
                                          aln1, aln2)
+
         if ali.contents.pos != -1:
             firstpos = ali.contents.pos
 
