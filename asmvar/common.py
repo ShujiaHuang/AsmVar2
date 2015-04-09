@@ -44,3 +44,46 @@ class SeqHashTable(object):
             # thought the hash by scan this array to keep the right order!
             self.hash_pointer.append(hash_id)
 
+def set_gap_open_penalty(seq, homopol_penalty):
+    """
+    Setting the gap open penalty by using the homopol_penalize model
+
+    Args:
+        ``length``: The haplotype sequence string.
+        ``homopol_penalty``: penalty model could be ``CommonDatum.homopol_penalize``
+                             and the ASCII value is from big to small.
+    """
+
+    gap_open_penalty = []
+    # Fill in the penalty from the back(NOT from head!) to help 
+    # left-justify indels
+    homo_char = seq[-1].upper()
+    hi = -1 # number of homopolymer 
+    for c in seq[::-1]: # Count from tail
+
+        if c.upper() == homo_char:
+            if hi < len(homopol_penalty): # Not be overflow
+                hi += 1 
+        else:
+            hi = 0
+
+        penalty_value = ord(homopol_penalty[hi]) - 33
+        if penalty_value < 0 or hi < 0:
+            raise ValueError('Encountered negative gap open score: %s in %s '
+                             '\n' % (penalty_value, seq))
+        gap_open_penalty.append(chr(penalty_value)) # covert to be ASCII
+        
+        homo_char = c.upper() # Move homo_char to the next
+
+    return ''.join(gap_open_penalty) # A char string
+
+
+
+
+
+
+
+
+
+
+
