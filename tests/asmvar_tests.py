@@ -94,11 +94,11 @@ def test_vutil_homoRunForOneVariant():
 def test_datum():
     
     comdata = dm.CommonDatum()
-    print 'indel_error_qual: ', comdata.indel_error_qual
+    print 'indel_error_qual: ', comdata.homopol_penalty
     print 'hashmer: ', comdata.hashmer
     print 'hashsize: ', comdata.hashsize
     print 'max_align_size: ', comdata.max_align_size
-    print 'indel_error_qual: ', comdata.indel_error_qual, '\n', dm.CommonDatum().indel_error_qual
+    print 'indel_error_qual: ', comdata.homopol_penalty, '\n', dm.CommonDatum().homopol_penalty
 
 def test_read():
 
@@ -124,36 +124,74 @@ def test_common_SeqHashTable():
     for id in ht.hash_pointer:
         print id, '=>', ht.hash_table[id]
 
+    print '\n'
+    idx = {}
+    for id in ht.hash_pointer:
+        idx[id] = idx.get(id, -1) + 1
+        print idx[id], id, ht.hash_table[id][idx[id]]
+
+def test_set_gap_open_cost(): 
+
+    penalty = com.set_gap_open_penalty('ATCGCCGcccNatcgccgcccc', dm.CommonDatum().homopol_penalty)
+    print '\npenalty:', penalty, [ord(i) for i in penalty]
+
+    penalty = com.set_gap_open_penalty('atcg', dm.CommonDatum().homopol_penalty)
+    print 'penalty:', penalty, [ord(i) for i in penalty]
+
+    penalty = com.set_gap_open_penalty('AaAaaA', dm.CommonDatum().homopol_penalty)
+    print 'penalty:', penalty, [ord(i) for i in penalty]
+
 def test_Haplotype():
 
     fa  = FastaFile('tests/data/ex1.fa')
-    hap = Hap(fa, 'chr1', 1, 20)
+    hap = Hap(fa, 'chr1', 1, 20, 100)
+
 
 def test_align_fastAlignmentRoutine():
 
     import ctypes
+    ########
+    class AlignTagPointer(ctypes.Structure):
+        _fields_ = [("score", ctypes.c_int), ("pos", ctypes.c_int)]
+    ########
     align = ctypes.CDLL('asmvar/align.so')
 
     print '\n\n** Now testing the align module **\n\n'
 
-    #seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTCCATGTACACACGCTGTCCTATGTACTTAT'
-    seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTGA'
-    seq2 = 'GGGAACAGGGGGGTGCACTAATGCGCTCCACGCC'
-    qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,'
+    seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTCCATGTACACACGCTGTCCTATGTACTTAT'
+    #seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTGA'
+    #seq2 = 'GGGAACAGGGGGGTGCACTAATGCGCTCCACGCC'
+    seq2 = 'CAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGT'
+    qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,;9'
 
     print seq1,'\n',seq2,'\n\n'
 
     aln1 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
     aln2 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
     local_gap_open = 'NKJHFA=854210/.-,,+**))(((\'\'\'&&&%%%$$$$#####"""""'
-    firstpos = 0
-    score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2, firstpos)
+    
+    read_start_in_hap = 0
+    align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
+    score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2)
 
+
+    if score.contents.score == -1:
+        score.contents.score = 1000
     print '\n\n*** After Align ***'
-    print 'align score: ', score
+    print 'align score: ', score.contents.score, '\t', score.contents.pos
     print 'align1: ', aln1, len(aln1)
     print 'align2: ', aln2, len(aln2)
     print '\n'
-    
+
+    score.contents.score -= align.calculateFlankScore(len(seq1), 10, qual, local_gap_open, 3, 2, score.contents.pos + read_start_in_hap, aln1, aln2)
+
+    #seq2 = 'CAGGGGGGAACTAATGCGACCTCCACGCCCTTAGTG'
+    #score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2)
+    print 'align score: ', score.contents.score, '\t', score.contents.pos
+    print 'align1: ', aln1, len(aln1)
+    print 'align2: ', aln2, len(aln2)
+    print '\n'
+
+
 
 
