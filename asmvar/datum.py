@@ -1,5 +1,8 @@
 """
 This module contain all the usefull globle values for AsmVar2
+
+The best thing is that ``datum`` should just be imported by ``executor``
+
 """
 import numpy as np
 
