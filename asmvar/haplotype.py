@@ -60,19 +60,15 @@ class Haplotype(object):
             leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
             rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
             self.sequence = leftseq + self._getMutatedSequence() + rightseq
-        """
-        # Record the positions' mapping depth of haplotype, but this is much 
-        # longer than the haplotype sequence
-        size = 2 * (self.sequence + max_read_length) 
-        self.map_count = [0 for i in range(size)]
-        """
+
         # Record the mapping depth for each position of haplotype
         self.map_depth = [0 for i in range(len(self.sequence))]
-        # Record the score cost of gap open. Use it for read realign process
+        # Record the score penalize of gap open. Use it for read realign process
         # The size of ``gap_open`` should be the same as self.sequence, but
-        # now I'll assign it to be None, and I'll assign a list for it when
-        # we need it.
-        self.gap_open = None
+        # now I'll assign it to be None, and I'll assign a string for it when
+        # we need it and the ASCII of each charter of the is a penalize value
+		# for gap open
+        self.gap_open = None # will be string type
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
