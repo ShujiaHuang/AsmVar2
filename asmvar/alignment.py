@@ -80,7 +80,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
          read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
     if haplotype.seq_hash is None:
         haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
-        haplotype.gap_open = com.set_gap_open_cost()
+        haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
+                                                      COMDM.homopol_penalty)
 
     # Firstly, we use seq_hash to find the most possible anchor position
     max_hit = 0
@@ -94,7 +95,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
             # always get the first position at the begin, because we don't use 
             # any strategies to select the most likely start from all the index 
             # in this list(haplotype.seq_hash.hash_table[id])!
-            idx[id] = idx.get(id, -1) + 1 # Start from index 0
+            idx[id] = idx.get(id, -1) + 1     # Start from index 0
             pos_idx = haplotype.seq_hash.hash_table[id][idx[id]]
             haplotype.map_depth[pos_idx] += 1 # Record the mapping depth
             if haplotype.map_depth[pos_idx] > max_hit:
