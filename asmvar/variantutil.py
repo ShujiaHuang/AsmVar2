@@ -19,7 +19,7 @@ class VariantCandidateReader(object):
     Required PyVCF
     """
 
-    def __init__(self, filenames, options):
+    def __init__(self, filenames, options = None):
 
         """
         Constructor. Takes the vcf files (bgzip format) and return
@@ -51,7 +51,7 @@ class VariantCandidateReader(object):
                 # How To: how to close the open vcf files' handle?
                 self.vcf_readers.append(vcf.Reader(filename = filename))
 
-    def variants(self, chrom = None, start = None, end = None):
+    def variants(self, chrom = None, start = None, end = None, options = None):
         """
         *(chrom = None, start = None, end = None)*
         Generator funtion. Yields variants in order of genomic coordinate.
@@ -68,6 +68,9 @@ class VariantCandidateReader(object):
         until the last base is returned.
 
         """
+        if self.options is None and options:
+            self.options = options
+
         varlist = []
         # TO DO: All the variant in the same position could make by a net
         for vcf_reader in self.vcf_readers:
