@@ -23,8 +23,7 @@ def test_basic():
 
 def test_VariantCandidateReader():
 
-    vcf_readers = vcreader(['tests/data/ex1.vcf'], 'options')
-    vcf_readers = vcreader(['tests/data/tb.vcf.gz'], 'options')
+    vcf_readers = vcreader(['tests/data/tb.vcf.gz'])
     varlist   = vcf_readers.variants('20', 14369, 17330)
     test_case = [14370, 17330]
     series    = [i.POS for i in varlist]
