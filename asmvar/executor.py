@@ -1,6 +1,9 @@
 """
 The executor of AsmVar2 and it just could be called by ``Asmvar.py``
 """
+import pysam
+import vcf
+
 import variantutil as vutil
 import haplotype
 
@@ -31,20 +34,27 @@ class VariantGenotype(object):
     A class for variants' genotyping.
 
     Input required:
-        (1) VCF files, bgzip format and has been index(.tbi) by tabix
-        (2) Short reads' alignment files, sam/bam format and hash been
+        (1) VCF files [list], bgzip format and has been index(.tbi) by tabix
+        (2) Short reads' alignment files[list], sam/bam format and hash been
             sorted and index (.bai)
         (3) Reference fasta, has been index(.fai)
     
     """
-    def __init__(self, vcffile, bamfile, referencefasta, options):
+    def __init__(self, vcffiles, bamfiles, referencefasta, options = None):
         """
         Constructor.
 
         """
-        self.vcf_infile = vcffile
-        self.bam_input  = bamfile
-        self.ref_fasta  = referencefasta
-        self.opt = options
+        # Perhaps I should check the files before I open them?!
+        # Checking whether vcffiles been tabix or not
+        # Checking whether bamfiles been index or not
+        # Checking whether fastafile been tabix or not
+        self.ref_fasta   = pysam.FastaFile(referencefasta)
+        self.vcf_readers = vutil.VariantCandidateReader(vcffiles)
+        self.bam_readers = [pysam.AlignmentFile(bf) for bf in bamfiles]
+        self.opt         = options
         
+
+
+
 
