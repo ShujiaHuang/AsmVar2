@@ -59,7 +59,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
                                      r.pos + 1) # read's alignment position
 
     
-def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
+def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score = None):
     """
     Mapping a single read to a specified haplotype sequence. 
 
@@ -138,9 +138,9 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
                 # calculate contribution to alignment score of mismatches
                 # and indels in flank, and adjust score. short circuit if
                 # calculation is unnecessary
-                if do_calcu_flank_score and 
-                   haplotype.buffer_size and 
-                   ali.contents.score > 0:
+                if (do_calcu_flank_score and
+                   haplotype.buffer_size and
+                   ali.contents.score > 0):
                     ali.contents.score -= align.calculateFlankScore(
                         len(haplotype), 
                         haplotype.buffer_size,
@@ -181,8 +181,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score):
         if ali.contents.pos != -1:
             firstpos = ali.contents.pos
 
-        if do_calcu_flank_score and haplotype.buffer_size and 
-           ali.contents.score > 0: 
+        if (do_calcu_flank_score and haplotype.buffer_size and 
+           ali.contents.score > 0): 
             ali.contents.score -= align.calculateFlankScore(
                 len(haplotype), 
                 haplotype.buffer_size,

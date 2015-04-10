@@ -11,6 +11,8 @@ import executor as exe
 
 def checking():
 
-if __name__ == "__main__":
+    return
+
+if __name__ == '__main__':
 
     print >> sys.stderr, '*************** ALL DONE ***************\n'
