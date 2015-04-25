@@ -45,8 +45,8 @@ class VariantCandidateReader(object):
                     'index the compressed file' % (filename))
                 logger.error(
                     'This should create an index file: %s.gz.tbi\n' % (filename))
-                #raise ValueError('\nInput VCF source file %s was not compressed '
-                #                 'and indexed' % (filename))
+                raise ValueError('\nInput VCF source file %s was not compressed '
+                                 'and indexed' % (filename))
             else:
                 # How To: how to close the open vcf files' handle?
                 self.vcf_readers.append(vcf.Reader(filename = filename))
@@ -128,12 +128,61 @@ class VariantCandidateReader(object):
                             # duplication positions in 'varlist'
                             varlist.append(record)
 
-        varlist = sorted(list(set(varlist))) # Sorted by reference pos order
+        varlist = self._dedup(varlist)
         logger.debug('Found %s variants in region %s in source file' 
                      % (len(varlist), '%s:%s-%s' % (chrom, start, end)))
 
         # It's a list of '_Record' which type is defined by 'PyVCF'
         return varlist
+
+    def _dedup(self, varlist):
+        """
+        Delete conflict variants at the same position.  
+
+        And keep the small one
+        """
+        if len(varlist) == 0: 
+            return [] 
+
+        vdict = {}
+        # Firstly, we should the duplicate positions
+        for i, v in enumerate(varlist):
+            k = v.CHROM + ':' + str(v.POS)
+            vdict[k] = vdict.get(k, []) + [i]
+
+        variants = []
+        for k, idx in vdict.items():
+
+            if len(idx) == 1:
+                variants.append(varlist[idx[0]])
+            else:
+                """
+                delete conflict here
+                """
+                prevar = varlist[idx[0]]
+                for i in idx[1:]:
+
+                    if prevar.REF == varlist[i].REF:
+
+                        prevar.ALT += varlist[i].ALT
+
+                    elif varlist[i].is_snp:
+
+                        continue
+                    else:
+                        # Keep the smaller one
+                        pre_max_vlen  = max([abs(len(prevar.REF) - len(v)) 
+                                             for v in prevar.AL])
+                        this_max_vlen = max([abs(len(varlist[i].REF) - len(v)) 
+                                             for v in varlist[i].ALT])
+                        if this_max_vlen < pre_max_vlen:
+                            prevar = varlist[i]
+                        
+                prevar.ALT = list(set(prevar.ALT)) # Unique the sequence
+                variants.append(prevar)
+
+        return sorted(list(set(variants))) # Sorted by reference pos order 
+        
 
 def get_sequence_context(fa_stream, variant):
     """
