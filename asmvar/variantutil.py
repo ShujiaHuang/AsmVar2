@@ -162,12 +162,15 @@ class VariantCandidateReader(object):
                 prevar = varlist[idx[0]]
                 for i in idx[1:]:
 
-                    if prevar.REF == varlist[i].REF:
-
+                    if prevar.is_snp and (not varlist[i].is_snp):
+                        # Ignore SNP,if we find other variant type  
+                        prevar = varlist[i]
+                    elif prevar.REF == varlist[i].REF:
+                        # Merge variants if they have the same REF, SNP
+                        # will be merge here, too
                         prevar.ALT += varlist[i].ALT
-
                     elif varlist[i].is_snp:
-
+                        # Ignore SNP,if we find other variant type
                         continue
                     else:
                         # Keep the smaller one
