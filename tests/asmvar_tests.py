@@ -24,7 +24,7 @@ def test_basic():
 def test_VariantCandidateReader():
 
     vcf_readers = vcreader(['tests/data/tb.vcf.gz'])
-    varlist   = vcf_readers.variants('20', 14369, 17330)
+    varlist   = vcf_readers.variants('20', 14369, 17330, False)
     test_case = [14370, 17330]
     series    = [i.POS for i in varlist]
     assert_equal(series, test_case)
@@ -33,10 +33,10 @@ def test_VariantCandidateReader():
 
 def test_VariantCandidateReader_variants():
 
-    vcf_readers = vcreader(['tests/data/ex1.vcf.gz'], 'options')
+    vcf_readers = vcreader(['tests/data/ex1.vcf.gz'])
     varlist = []
 
-    varlist = vcf_readers.variants('chr1')
+    varlist = vcf_readers.variants(chrom = 'chr1', nosnp = False)
     pos_case_chr1 = [288, 548, 1294]
     ref_case_chr1 = ['A', 'C', 'A']
     alt_case_chr1 = ['ACATAG', 'A', 'G']
@@ -46,7 +46,7 @@ def test_VariantCandidateReader_variants():
     assert_equal(alt_case_chr1, [i.ALT[0].sequence for i in varlist])
 
 
-    varlist = vcf_readers.variants('chr2')
+    varlist = vcf_readers.variants(chrom = 'chr2', nosnp = False)
     pos_case_chr2 = [156, 505, 784, 1344]
     ref_case_chr2 = ['A', 'A', 'C', 'A']
     alt_case_chr2 = ['AAG', 'G', 'CAATT', 'C']
@@ -73,11 +73,11 @@ def test_vutil_homoRunForOneVariant():
     assert_equal(vutil._calHrunSize('ACTCACAGGTTTTATAAAAC'[::-1]), 0)
 
     fa = FastaFile('tests/data/ex1.fa')
-    vcf_readers = vcreader(['tests/data/ex1.vcf.gz'], 'options')
-    varlist = vcf_readers.variants('chr1')
+    vcf_readers = vcreader(['tests/data/ex1.vcf.gz'])
+    varlist = vcf_readers.variants(chrom = 'chr1', nosnp = False)
     vutil.homoRunForOneVariant(fa, varlist[0])
 
-    varlist = vcf_readers.variants('chr2')
+    varlist = vcf_readers.variants(chrom = 'chr2', nosnp = False)
     assert_equal(784, varlist[2].POS)
     assert_equal('ACTCACAGGTTTTATAAAAC', fa.fetch('chr2', varlist[2].POS - 20, varlist[2].POS))
     assert_equal('AATTGAGACTACAGAGCAAC', fa.fetch('chr2', varlist[2].POS, varlist[2].POS + 20))

@@ -51,9 +51,9 @@ class VariantCandidateReader(object):
                 # How To: how to close the open vcf files' handle?
                 self.vcf_readers.append(vcf.Reader(filename = filename))
 
-    def variants(self, chrom = None, start = None, end = None, options = None):
+    def variants(self, chrom = None, start = None, end = None, nosnp = True):
         """
-        *(chrom = None, start = None, end = None)*
+        *(chrom = None, start = None, end = None, nosnp = True)*
         Generator funtion. Yields variants in order of genomic coordinate.
 
         fetch variants in a region using 0-based indexing.
@@ -68,9 +68,6 @@ class VariantCandidateReader(object):
         until the last base is returned.
 
         """
-        if self.options is None and options:
-            self.options = options
-
         varlist = []
         # TO DO: All the variant in the same position could make by a net
         for vcf_reader in self.vcf_readers:
@@ -85,7 +82,11 @@ class VariantCandidateReader(object):
                 r.FORMAT  = None
                 r.samples = None
 
-                if r.is_snp:
+                if nosnp and r.is_snp:
+
+                    continue
+                elif r.is_snp:
+
                     varlist.append(r)
                 else:
                     # Copy the VCF row, and all the change will just happen 
@@ -93,8 +94,8 @@ class VariantCandidateReader(object):
                     # new record to 'varlist'
                     record = copy.copy(r)
 
-                    # TO DO: This trim strategy is greedy, which is not a good 
-                    # method. 
+                    # TO DO: This trim strategy is greedy algorithm, which is 
+                    # not the best method. 
                     # e.g: Assume the turth is [A, ATC] 
                     # If we see [AA, ATCA] then will be [A, TCA] instead of
                     # [A, ATC] after triming 
@@ -127,7 +128,7 @@ class VariantCandidateReader(object):
                             # duplication positions in 'varlist'
                             varlist.append(record)
 
-        varlist = sorted(list(set(varlist))) # Sorted by reference order
+        varlist = sorted(list(set(varlist))) # Sorted by reference pos order
         logger.debug('Found %s variants in region %s in source file' 
                      % (len(varlist), '%s:%s-%s' % (chrom, start, end)))
 
