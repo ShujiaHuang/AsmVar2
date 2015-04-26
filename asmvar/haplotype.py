@@ -22,7 +22,7 @@ class Haplotype(object):
         ref_stream_fa: A file stream of reference fasta file.
         max_read_length: The max size of reads in fq file, use for extending 
                          the haplotype region. [100]
-        variants: A list of variants. The data type defined in ``vcf`` module
+        variants: A list of variants. The data type defined in ``PyVCF`` module
                   and been called by ``VariantCandidateReader`` in the module 
                   ``variantutil``. [None]
     """
@@ -39,7 +39,7 @@ class Haplotype(object):
         self.hap_start   = max(1, self.start_pos - self.buffer_size)
         self.hap_end     = min(self.end_pos + self.buffer_size, chromlen)
         self.fa_stream   = ref_stream_fa
-        self.variants    = copy.copy(variants) # Must use copy!!
+        self.variants    = copy.deepcopy(variants) # Must use deepcopy!!
         self.sequence    = None # The haplotype sequence
         self.hash_id     = None # A hash id use for identified this haplotype
         self.seq_hash    = None # Encode a hash table for self.sequence used 
@@ -109,7 +109,6 @@ class Haplotype(object):
             logger.error('Region(%s) does not contain variants.' % region)
             raise ValueError('Region(%s) does not contain variants. Do not '
                              'have to call _getMutatedSequence' % region)
-
         seq = []
         current_pos = self.start_pos
         for v in self.variants:
@@ -118,7 +117,7 @@ class Haplotype(object):
                 # For each haplotype the ALT should just be one.
                 # It should be divide into > 1 haplotypes before we call this 
                 # function to create the hap-mutate-seq if len(v.ALT) > 1, so
-				# deplication positions should be NEVER happen!
+                # duplication positions should be NEVER happen!
                 raise ValueError('The ALT sequence should just be one '
                                  'for each single haplotype!')
 
@@ -128,8 +127,8 @@ class Haplotype(object):
                                  'may not sorted or duplicate or overlap with '
                                  'the reference region' % (current_pos, v.POS))
 
-            # current_pos is always point to last breakpoint
-            if current_pos == v.POS:
+            # current_pos is always point to the last breakpoint
+            if current_pos == v.POS and v.ALT[0] is not None:
                 seq.append(v.ALT[0].sequence)
             else: # current_pos < v.POS
                 # Get sequence up to one base before the variant. And DO NOT
@@ -137,7 +136,10 @@ class Haplotype(object):
                 # the first base of mutate-seq on v.POS
                 ref = self.fa_stream.fetch(self.chrom, current_pos, v.POS - 1)
                 # Mutate-seq v.POS
-                seq.append(ref + v.ALT[0].sequence)
+                if v.ALT[0] is not None:
+                    seq.append(ref + v.ALT[0].sequence)
+                else:
+                    seq.append(ref)
             # Move up to the next variant
             current_pos = v.POS + len(v.REF) - 1    # 0-base!
 
@@ -149,6 +151,7 @@ class Haplotype(object):
             
         if current_pos < self.end_pos:
             seq.append(self.fa_stream.fetch(self.chrom, current_pos, self.end_pos))
-        # Join into a single string
+        # Join them to be a single string
         return ''.join(seq)
-        
+
+

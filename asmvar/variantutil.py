@@ -106,7 +106,6 @@ class VariantCandidateReader(object):
                         # REF. That will not be trim!
 
                         pos, ref = r.POS, r.REF
-                        
                         # Trim the leading bases, should keep at lest 1 base 
                         while (alt.sequence[0].upper() == ref[0].upper() and 
                                len(ref) > 1 and len(alt) > 1):
@@ -185,7 +184,7 @@ class VariantCandidateReader(object):
                 variants.append(prevar)
 
         return sorted(list(set(variants))) # Sorted by reference pos order 
-        
+
 
 def get_sequence_context(fa_stream, variant):
     """
