@@ -1,10 +1,13 @@
 """
-This module caontain fucntions and class for genotyping the variats.
+This module contain fucntions and class for genotyping the variats.
+
+This module will connect the `Haplotype` and `alignment` class
 """
 import copy
 from itertools import combinations as itertools_combinations
 
 import vcf
+import alignment as alg # The alignment module
 from haplotype import Haplotype
 
 class Diploid(object):
@@ -15,27 +18,46 @@ class Diploid(object):
         """
         Constructor.
         """
+        if hap1.hapregion_hash_id != hap1.hapregion_hash_id:
+            raise ValueError('[ERROR] The two haplotypes did not have the same '
+                             'haplotype region, could not build up a diploid.')
+
         self.hap1 = hap1 # Do I have use deepcopy here?
         self.hap2 = hap2 # Do I have use deepcopy here?
 
-    del likelihood(self, bam_readers):
+    del calLikelihood(self, read_buffer_dict, bam_reader):
         """
-        Calculate the likelihood for this diploid.
+        Calculate the genotype likelihood for this single bam_reader's sample.
 
         Args:
-            `bam_readers`: A list of bamfiles' input stream
+            `read_buffer_dict`: A hash to reads. It's a contianer of reads, 
+                                use it to prevent recalculting the hash-sequence 
+                                for the same reads. This could save the running 
+                                time.
+            `bam_readers`: A single bamfile reader opened by `pysam.AlignmentFile`
+
+        return a value coresponse to the likelihood.
         """
+        # List of likelihood for each aligning read
+        self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
+                                                        read_buffer_dict,
+                                                        bam_reader)
+        self.hap2.likelihood = alg.alignReadToHaplotype(self.hap2,
+                                                        read_buffer_dict,
+                                                        bam_reader)
 
 def generateAllGenotypes(ref_fa_stream, max_read_len, winvar):
     """
     Generate a list of potentail genotypes.
     """
     gentypes   = []
-    haplotypes = _generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, 
+    haplotypes = _generateAllHaplotypeByVariants(ref_fa_stream, 
+                                                 max_read_len, 
                                                  winvar)
     index = range(len(haplotypes))
     for i in index:
         for j in index[i:]:
+            # Create Diploid
             gentypes.append(Diploid(haplotypes[i], haplotypes[j]))
 
     return gentypes

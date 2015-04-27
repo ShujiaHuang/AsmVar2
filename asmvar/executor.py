@@ -1,11 +1,17 @@
 """
-The executor of AsmVar2 and it just could be called by ``Asmvar.py``
+This module will contain all the executor steps of variant calling,
+genotying, variants' recalibration et.el
+
+We have many important modules in AsmVar while this module is the lord
+to rule them all, in a word, it's "The Ring". 
+`Asmvar.py` is "Sauron", and this module could just be called by it.
 """
 import pysam
 import vcf
+import numpy as np
 
 import variantutil as vutil
-import genotype 
+import genotype as gnt
 
 class VariantCaller(object):
     """
@@ -43,6 +49,9 @@ class VariantGenotype(object):
         """
         Constructor.
 
+        Args:
+            `vcffiles`: VCF files list.
+            `bamfiles`: Bam files list. format: [(sample1,bam1), (), ...]
         """
         # Perhaps I should check the files before I open them?!
         # Checking whether vcffiles been tabix or not
@@ -50,18 +59,59 @@ class VariantGenotype(object):
         # Checking whether fastafile been tabix or not
         self.ref_fasta   = pysam.FastaFile(referencefasta)
         self.vcfs        = vutil.VariantCandidateReader(vcffiles)
-        self.bam_readers = [pysam.AlignmentFile(bf) for bf in bamfiles]
-        self.opt         = options
+        # self.bam_readers is a hash dict, it's 'SampleID' point to
+        # [index, bamReader] each bamfile represent to one sample
+        self.bam_readers = {bf[0]:[i, pysam.AlignmentFile(bf[1])] 
+                            for id, bf in enumerate(bamfiles)}
+        # Index => SampleID
+        self.sample_index = {v[0]:k for k, v in self.bam_readers.items()}
+        self.opt = options
 
     def genotyping(self):
         """
         The genotype process for haplotypes.
         """
+        # loop all the vatiant windows
         for winvar in self._windowing():
-            # Genotype each windows
-            gentypes = genotype.generateAllGenotypes(self.ref_fasta, 
-                                                    self.opt.nax_read_len,
-                                                    winvar)
+            # Genotype haplotype in each windows
+            genotypes = gnt.generateAllGenotypes(self.ref_fasta, 
+                                                 self.opt.max_read_len,
+                                                 winvar)
+            # Record buffer prevents to calculating again and saving time.
+            # It must be a temporary value and clean the old data for each
+            # genotype, or it'll cost a huge memory and it'll absolutely run 
+            # out all the machine memory
+            read_buffer_dict = {} 
+            # Record the genotype likelihood for genotyping
+            genotype_likelihoods = []
+            for gt in genotypes:
+                
+                individual_loglikelihoods = self._calLikelihoodForIndividual(
+                    gt, read_buffer_dict)
+
+                # The 'row' represent to each genotypes
+                # The 'colum' represent to each individuals
+                genotype_loglikelihoods.append(individual_loglikelihoods)
+
+            # Covert to numpy array for the next step
+            genotype_likelihoods = np.array(genotype_likelihoods)
+
+    def _calLikelihoodForIndividual(self, genotype, read_buffer_dict):
+        """
+        Calculate the likelihood for each individual of this genotype by 
+        re-aligning the reads of the specific individual.
+
+        return a log likelihood for this genotype
+        """
+
+        likelihoods = [None for i in self.sample_index] # initial array's size
+        for _, br in self.bam_readers.items():
+            # Each bam file represent to one sample
+            lh = genotype.calLikelihood(read_buffer_dict, br[1])
+            # Storing by samples. br[0] is the index for sample
+            likelihoods[br[0]] = lh
+
+        return likelihoods
 
     def _windowing(self):
         """
@@ -134,6 +184,18 @@ class VariantGenotype(object):
                     windows_varlist.append(wvar)
 
         return windows_varlist
+
+
+class VariantRecalibration(object):
+	"""
+	"""
+    def __init__(self):
+        """
+        Constuctor.
+        """
+
+
+
 
 
 

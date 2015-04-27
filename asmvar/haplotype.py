@@ -1,5 +1,5 @@
 """
-This module contain classes and functions for general haplotype
+This module contain classes and functions for general haplotype.
 """
 import copy
 import logging
@@ -13,7 +13,7 @@ class Haplotype(object):
     Class to encapsulate a single haplotype from a list of variants and 
     reference region 'chrId, start, end' fasta file's stream.
 
-    It'll just return the reference haplotype if ``variants`` is None
+    It'll just return the reference haplotype if `variants` is None
 
     Args:
         chrom: reference chromosome id
@@ -22,9 +22,9 @@ class Haplotype(object):
         ref_stream_fa: A file stream of reference fasta file.
         max_read_length: The max size of reads in fq file, use for extending 
                          the haplotype region. [100]
-        variants: A list of variants. The data type defined in ``PyVCF`` module
-                  and been called by ``VariantCandidateReader`` in the module 
-                  ``variantutil``. [None]
+        variants: A list of variants. The data type defined in `PyVCF` module
+                  and been called by `VariantCandidateReader` in the module 
+                  `variantutil`. [None]
     """
     def __init__(self, ref_stream_fa, chrom, start_pos, end_pos, 
                  max_read_length, variants = None):
@@ -44,6 +44,10 @@ class Haplotype(object):
         self.hash_id     = None # A hash id use for identified this haplotype
         self.seq_hash    = None # Encode a hash table for self.sequence used 
                                 # for mapping when we needed
+
+        # This is a haplotype region identify. and could be used for guarantee 
+        # the two haplotypes have the same region when we construct diploid.
+        self.hapregion_hash_id = hash((self.chrom, self.start_pos, self.end_pos))
 
         if variants is None or len(variants) == 0:
 
@@ -68,7 +72,8 @@ class Haplotype(object):
         # now I'll assign it to be None, and I'll assign a string for it when
         # we need it and the ASCII of each charter of the is a penalize value
 		# for gap open
-        self.gap_open = None # will be string type
+        self.gap_open   = None # will be string type
+        self.likelihood = None # likelihood calculated by reads alignment
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
@@ -82,7 +87,7 @@ class Haplotype(object):
         """
         if self.hash is None:
             self.hash_id = hash((self.chrom, self.start_pos, self.end_pos, 
-                              slef.sequence))
+                                 slef.sequence))
 
         return self.hash_id
 
