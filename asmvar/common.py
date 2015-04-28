@@ -75,7 +75,7 @@ def set_gap_open_penalty(seq, homopol_penalty):
         
         homo_char = c.upper() # Move homo_char to the next
 
-    return ''.join(gap_open_penalty) # A char string
+    return ''.join(gap_open_penalty) # A char string ASCII repersent the score
 
 
 
