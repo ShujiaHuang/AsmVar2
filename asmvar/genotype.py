@@ -14,18 +14,22 @@ class Diploid(object):
     """
     A class represent a diploid genotype. It store two haplotype
     """
-    def __init__(self, Haplotype hap1, Haplotype hap2):
+    def __init__(self, haplotype1, haplogtype2):
         """
         Constructor.
+
+        Args:
+            `haplotype1`: The data type is Haplotype
+            `haplotype2`: The data type is Haplotype
         """
         if hap1.hapregion_hash_id != hap1.hapregion_hash_id:
             raise ValueError('[ERROR] The two haplotypes did not have the same '
                              'haplotype region, could not build up a diploid.')
 
-        self.hap1 = hap1 # Do I have use deepcopy here?
-        self.hap2 = hap2 # Do I have use deepcopy here?
+        self.hap1 = haplotype1 # Do I have use deepcopy here?
+        self.hap2 = haplotype2 # Do I have use deepcopy here?
 
-    del calLikelihood(self, read_buffer_dict, bam_reader):
+    def calLikelihood(self, read_buffer_dict, bam_reader):
         """
         Calculate the genotype likelihood for this single bam_reader's sample.
 
@@ -38,7 +42,8 @@ class Diploid(object):
 
         return a value coresponse to the likelihood.
         """
-        # List of likelihood for each aligning read
+        # List of likelihood for each aligning read. each value in the array
+        # represent a likelihood value of read align to the haplotype
         self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
                                                         read_buffer_dict,
                                                         bam_reader)
