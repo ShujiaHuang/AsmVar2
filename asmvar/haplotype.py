@@ -73,7 +73,8 @@ class Haplotype(object):
         # we need it and the ASCII of each charter of the is a penalize value
 		# for gap open
         self.gap_open   = None # will be string type
-        self.likelihood = None # likelihood calculated by reads alignment
+        self.likelihood = []   # likelihood calculated for each read during
+                               # re-aligning process
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
