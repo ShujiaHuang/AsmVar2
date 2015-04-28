@@ -9,6 +9,12 @@ import numpy as np
 class CommonDatum(object):
 
     def __init__(self):
+
+        ########## Common Value #############################################
+        self.mlol = np.log(10) / (-10) # use to shift map_qual to log value
+        #####################################################################
+
+        ########## Haplotype Alignment ######################################
         indel_base_error = [2.9e-5, 2.9e-5, 2.9e-5, 2.9e-5, 4.3e-5,
                             1.1e-4, 2.4e-4, 5.7e-4, 1.0e-3, 1.4e-3]
         extend_err = [1.4e-3 + 4.3e-4 * (n - 10) for n in range(11,50)]
@@ -16,8 +22,7 @@ class CommonDatum(object):
         # errors score
         penalty = indel_base_error + extend_err
         # homopolymer indel error model and convert the value into ASCII
-        self.homopol_penalty = ''.join([chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1)))
-                                        for i, q in enumerate(penalty)])
+        self.homopol_penalty = ''.join([chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1))) for i, q in enumerate(penalty)])
 
         # Alignment score matrix
         self.gap_extend = 3
@@ -28,4 +33,9 @@ class CommonDatum(object):
         # The max allow size for aligniing process. 
         # Set this value just want to limit the time
         self.max_align_size = self.hashsize 
+
+        self.use_read_mapq = True # Decide by myself and used in `alignment`
+        self.do_calcu_flank_score = False # Decide by myself used in `alignment`
+        #####################################################################
+
 
