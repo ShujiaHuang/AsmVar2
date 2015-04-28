@@ -86,6 +86,7 @@ class VariantGenotype(object):
             genotype_likelihoods = []
             for gt in genotypes:
                 
+                # Calculte the genotype likelihood for each individual
                 individual_loglikelihoods = self._calLikelihoodForIndividual(
                     gt, read_buffer_dict)
 
@@ -101,14 +102,15 @@ class VariantGenotype(object):
         Calculate the likelihood for each individual of this genotype by 
         re-aligning the reads of the specific individual.
 
-        return a log likelihood for this genotype
+        return an array loglikelihood for this genotype
         """
 
         likelihoods = [None for i in self.sample_index] # initial array's size
         for _, br in self.bam_readers.items():
-            # Each bam file represent to one sample
+            # Each bam file represent to one sample. Get the likelihood
+            # by reads realignment
             lh = genotype.calLikelihood(read_buffer_dict, br[1])
-            # Storing by samples. br[0] is the index for sample
+            # Storing by individual index. br[0] is the index for individual
             likelihoods[br[0]] = lh
 
         return likelihoods
@@ -187,15 +189,10 @@ class VariantGenotype(object):
 
 
 class VariantRecalibration(object):
-	"""
-	"""
+
     def __init__(self):
         """
         Constuctor.
         """
-
-
-
-
-
+        self.vcfs = None
 
