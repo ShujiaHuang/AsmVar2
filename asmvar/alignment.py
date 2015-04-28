@@ -4,30 +4,32 @@ genotyping or realignment process
 """
 import os
 import ctypes
+import numpy as np
 
 import common as com # Same common functions
-import datum  as DM   # The global common datum
+import datum  as DM  # The global common datum
 from read import Read
 
-# DM.CommonDatum().hashmer is defualt to be 7
-COMDM  = DM.CommonDatum()
-ALIMER = 15 # Fix by the alignment algorithm in 'align.so'
-# The diretory of this program
-dir    = os.path.dirname(os.path.abspath(__file__))
-align  = ctypes.CDLL(dir + '/align.so')  # The alignment module written by C
+# Defined some global values
+COMDM  = DM.CommonDatum() # DM.CommonDatum().hashmer is defualt to be 7
+ALIMER = 15 # Fix by the alignment algorithm in ``align.c``
+
+# Diretory of this python file
+dir   = os.path.dirname(os.path.abspath(__file__))
+align = ctypes.CDLL(dir + '/align.so') # The alignment module written by C
 
 # Create a class to get the alignment information which record in a 
-# c structure data type in align.fastAlignmentRoutine
-# Thinks for the help of ``http://blog.csdn.net/joeblackzqq/article/details/10441017``
+# c structure data type in `align.fastAlignmentRoutine`
+# Thanks for the help of `http://blog.csdn.net/joeblackzqq/article/details/10441017`
 class AlignTagPointer(ctypes.Structure):
-	_fields_ = [("score", ctypes.c_int), ("pos", ctypes.c_int)]
+    _fields_ = [("score", ctypes.c_int), ("pos", ctypes.c_int)]
 align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
-
+###############################################################################
 
 def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
     """ Learn from Platypus.
 
-    This is the most basic and important part of AsmVar2. This function decides
+    This is the most basic and important part of AsmVar. This function decides
     where to anchor the read to the specified haplotype, and calls the banded-
     alignment function -- fastAlignmentRoutine function in 'align.c'. 
 
@@ -44,22 +46,31 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
     if haplotype.seq_hash is None:
         haplotype.seq_hash = com.SeqHashTable(haplotype.sequence)
 
+    read_align_likelihoods = []
     # 0-index system
     start, end = haplotype.hap_start - 1, haplotype.hap_end
     for r in bam_stream.fetch(haplotype.chrom, start, end):
 
         # The uniq-hash Id for identifying each read by the name and seq
-        r_identify = hash((r.qname, r.query))
+        # aligne to the same haplotype and we do not have recalculate the
+        # alignment score if the read has did it before, this could save a
+        # lot of running time
+        r_identify = hash((r.qname, r.query, haplotype))
         if r_identify not in reads_collection:
-            reads_collection[r_identify] = Read(r)
+            # First element is Read, the second is the alignment likelihood
+            reads_collection[r_identify] = [Read(r), None]
+            # The alignemnt position in pysam is 0-base, 
+            # shift r.pos to be 1-base
+            reads_collection[r_identify][1] = singleRead2Haplotype(
+                haplotype, reads_collection[r_identify][0], r.pos + 1)
 
-        # The alignemnt position in pysam is 0-base, shift r.pos to be 1-base
-        score = singleRead2Haplotype(haplotype, 
-                                     reads_collection[r_identify],
-                                     r.pos + 1) # read's alignment position
+        read_align_likelihoods.append(reads_collection[r_identify][1])
 
-    
-def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score = None):
+    # alignment likelihood for each alignment read
+    return read_align_likelihoods
+
+
+def singleRead2Haplotype(haplotype, read, read_align_pos):
     """
     Mapping a single read to a specified haplotype sequence. 
 
@@ -72,10 +83,10 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
                      collecting from ``AlignedRead`` of pysam by reading bam
                      files and a hash table for the read sequence
 
-    Return: The best alignement score
+    Return: The best alignement score's likelihood
     """
     # hash the halotype.sequence and read.seqs. And just do it here, and 
-    # just do it once!!!
+    # just do it one time!!!
     if read.hash is None:
          read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
     if haplotype.seq_hash is None:
@@ -138,9 +149,13 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
                 # calculate contribution to alignment score of mismatches
                 # and indels in flank, and adjust score. short circuit if
                 # calculation is unnecessary
-                if (do_calcu_flank_score and
-                   haplotype.buffer_size and
-                   ali.contents.score > 0):
+                if (COMDM.do_calcu_flank_score and haplotype.buffer_size and
+                    ali.contents.score > 0):
+                    
+                    # This step may cause 'ali.contents.score' to be a negative
+                    # value. if negative value be the score, we'll get a 
+                    # positive log value after times with `COMDM.mlol`, and 
+                    # it means we will get a likelihood > 1.0, could this allow?
                     ali.contents.score -= align.calculateFlankScore(
                         len(haplotype), 
                         haplotype.buffer_size,
@@ -158,7 +173,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
                     # Short-circuit this loop if we find an exact match
                     # (0 is the best score, means exact match)
                     if best_ali_score == 0: 
-                        return best_ali_score
+                        return 0 # log value == 0, means the probability == 1.0
 
     # Try original mapping position. If the read is past the end of the 
     # haplotype then don't allow the algorithm to align off the end of 
@@ -170,6 +185,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
         read_start_in_hap = max(0, i - 8)
         s = read_start_in_hap 
         e = s + hap_len_for_align 
+        # The score of exactly mapping will be 0, others will larger than 0.
         ali = align.fastAlignmentRoutine(haplotype.sequence[s:e], 
                                          read.seqs, read.qual, 
                                          hap_len_for_align, len(read),
@@ -181,8 +197,9 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
         if ali.contents.pos != -1:
             firstpos = ali.contents.pos
 
-        if (do_calcu_flank_score and haplotype.buffer_size and 
-           ali.contents.score > 0): 
+        if (COMDM.do_calcu_flank_score and haplotype.buffer_size and 
+            ali.contents.score > 0): 
+
             ali.contents.score -= align.calculateFlankScore(
                 len(haplotype), 
                 haplotype.buffer_size,
@@ -196,7 +213,21 @@ def singleRead2Haplotype(haplotype, read, read_align_pos, do_calcu_flank_score =
         if ali.contents.score < best_ali_score:
             best_ali_score = ali.contents.score
 
-    return best_ali_score
+    # Finaly, we should convert the score to be log value
+
+    # The probability of read aligne error (shift to log value)
+    prob_read_map_error = read.mapq * COMDM.mlol
+    # The probability of read aligne correct (still keep the log value)
+    prob_read_map_right = np.log(1.0 - np.exp(prob_read_map_error))
+
+    likelihood_threshold = -100 # A small enough value
+    if COMDM.use_read_mapq:
+        likelihood_threshold = prob_read_map_error
+
+    # The max value could just be 0 for all situations if we don't adjust
+    # the value with 'do_calcu_flank_score'
+    loglk = COMDM.mlol * best_ali_score + prob_read_map_right
+    return max(loglk, likelihood_threshold)
 
 
 
