@@ -34,7 +34,7 @@ class VariantCaller(object):
         self.opt         = options
 
 
-class VariantGenotype(object):
+class VariantsGenotype(object):
     """
     A class for variants' genotyping.
 
@@ -73,29 +73,67 @@ class VariantGenotype(object):
         """
         # loop all the vatiant windows
         for winvar in self._windowing():
-            # Genotype haplotype in each windows
-            genotypes = gnt.generateAllGenotypes(self.ref_fasta, 
-                                                 self.opt.max_read_len,
-                                                 winvar)
-            # Record buffer prevents to calculating again and saving time.
-            # It must be a temporary value and clean the old data for each
-            # genotype, or it'll cost a huge memory and it'll absolutely run 
-            # out all the machine memory
-            read_buffer_dict = {} 
-            # Record the genotype likelihood for genotyping
-            genotype_likelihoods = []
-            for gt in genotypes:
-                
-                # Calculte the genotype likelihood for each individual
-                individual_loglikelihoods = self._calLikelihoodForIndividual(
-                    gt, read_buffer_dict)
+            """
+            Genotype the haplotypes in each windows.
+            """
+            # Likelihood of each individual for all genotypes in the window.
+            # The 'row' represent to each genotypes  
+            # The 'colum' represent to each individuals
+            # And it's a numpy array
+            genotype_likelihoods = self.set_genotype_likelihood(winvar)
 
-                # The 'row' represent to each genotypes
-                # The 'colum' represent to each individuals
-                genotype_loglikelihoods.append(individual_loglikelihoods)
+            # Now move to the next step. Use EM
 
-            # Covert to numpy array for the next step
-            genotype_likelihoods = np.array(genotype_likelihoods)
+    def set_genotype_likelihood(self, winvar):
+        """
+        Setting the genotypes for haplotyp of 'winvar' and return.
+
+        Args:
+            `winvar`: It's dict(chrom=chrom, start=start, end=end, variant=var)
+
+        return a numpy array with individual likelihood for each genotype
+        """
+        genotypes = gnt.generateAllGenotypes(self.ref_fasta, 
+                                             self.opt.max_read_len,
+                                             winvar)
+        # Record buffer prevents to calculating again and saving time. 
+        # But it must be a temporary value and clean the old data for each
+        # genotype, or it'll cost a huge memory and it'll absolutely run  
+        # out all the machine memory  
+        read_buffer_dict = {}
+        # Record the genotype likelihood for genotyping 
+        genotype_likelihoods = []
+        for gt in genotypes: 
+    
+            # Calculte the genotype likelihood for each individual
+            individual_loglikelihoods = self._calLikelihoodForIndividual(
+                gt, read_buffer_dict) # A array of log10 value
+
+            # The 'row' represent to each genotypes 
+            # The 'colum' represent to each individuals 
+            genotype_loglikelihoods.append(individual_loglikelihoods)
+
+        # Rescale genotype likelihood and covert to numpy array for the
+        # next step. And causion: the array may contain value > 0 here,
+        # before re-scale. It's log10 value 
+        genotype_likelihoods = self._reScaleLikelihood(genotype_likelihoods)
+
+        return genotype_likelihoods
+
+    def _reScaleLikelihood(self, likelihoods):
+        """
+        Re-scale the genotype log likelihoods by using maximum value
+        """
+        max_log = -1e6 # Threshold for maxmun likelihood value
+        likelihoods = np.array(likelihoods, dtype = float)
+
+        # Get the max log likelihood for each individual among all genotypes
+        max_loglk = likelihoods.max(axis = 0) # Find max value by colums
+        # If all the likelihoods are small for some specify individuals, we
+        # should still guarantee they're still small even after re-scaling.
+        max_loglk[max_loglk < max_log] = max_log 
+
+        return likelihoods / max_loglk # Re-scale by maxmum likelihood
 
     def _calLikelihoodForIndividual(self, genotype, read_buffer_dict):
         """
@@ -113,7 +151,7 @@ class VariantGenotype(object):
             # Storing by individual index. br[0] is the index for individual
             likelihoods[br[0]] = lh
 
-        return likelihoods
+        return likelihoods # A array of log10 value
 
     def _windowing(self):
         """
