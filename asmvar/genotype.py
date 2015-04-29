@@ -82,9 +82,9 @@ class Diploid(object):
                 prob = 0.5 * (np.power(10, log10lk1) + np.power(10, log10lk2))
                 likelihood += np.log10(prob) # a log10 value
 
-        # Generally, likelihood should always < 0, but it may > 0, once we
-        # adjust with flank region of haplotype in the `alignReadToHaplotype`
-        # process.
+        # Generally, for our situation the likelihood should always < 0, but 
+        # it may > 0, once ww adjust with flank region of haplotype in the 
+        # `alignReadToHaplotype` process.
         return likelihood
 
 
