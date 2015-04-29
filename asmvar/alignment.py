@@ -55,7 +55,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
         # aligne to the same haplotype and we do not have recalculate the
         # alignment score if the read has did it before, this could save a
         # lot of running time
-        r_identify = hash((r.qname, r.query, haplotype))
+        r_identify = hash((r.qname, r.query, haplotype.sequence))
         if r_identify not in reads_collection:
             # First element is Read, the second is the alignment likelihood
             reads_collection[r_identify] = [Read(r), None]
@@ -67,7 +67,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
         read_align_likelihoods.append(reads_collection[r_identify][1])
 
     # alignment likelihood for each alignment read
-    return read_align_likelihoods
+    return read_align_likelihoods # Array of log likelihoods
 
 
 def singleRead2Haplotype(haplotype, read, read_align_pos):
@@ -156,8 +156,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                     
                     # This step may cause 'ali.contents.score' to be a negative
                     # value. if negative value be the score, we'll get a 
-                    # positive log value after times with `COMDM.mlol`, and 
-                    # it means we will get a likelihood > 1.0, could this allow?
+                    # positive log10 value after times with `COMDM.mot`, and it
+                    # means we will get a likelihood > 1.0, could this allow?
                     ali.contents.score -= align.calculateFlankScore(
                         len(haplotype), 
                         haplotype.buffer_size,
@@ -216,12 +216,11 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
         if ali.contents.score < best_ali_score:
             best_ali_score = ali.contents.score
 
-    # Finaly, we should convert the score to be log value
-
-    # The probability of read aligne error (shift to log value)
-    prob_read_map_error = read.mapq * COMDM.mlol
-    # The probability of read aligne correct (still keep the log value)
-    prob_read_map_right = np.log(1.0 - np.exp(prob_read_map_error))
+    # Finaly, we should convert the score to be a log10 value
+    # The probability of read aligne error (convert to be a log10 value)
+    prob_read_map_error = read.mapq * COMDM.mot
+    # The probability of read aligne correct (still keep the log10 value)
+    prob_read_map_right = np.log10(1.0 - np.power(10, prob_read_map_error))
 
     likelihood_threshold = -100 # A small enough value
     if COMDM.use_read_mapq:
@@ -229,8 +228,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
     # The max value could just be 0 for all situations if we don't adjust
     # the value with 'do_calcu_flank_score'
-    loglk = COMDM.mlol * best_ali_score + prob_read_map_right
-    return max(loglk, likelihood_threshold)
+    loglk = COMDM.mot * best_ali_score + prob_read_map_right
+    return max(loglk, likelihood_threshold) # It's a log10 value
 
 
 
