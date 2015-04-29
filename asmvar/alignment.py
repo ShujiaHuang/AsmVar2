@@ -67,7 +67,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
         read_align_likelihoods.append(reads_collection[r_identify][1])
 
     # alignment likelihood for each alignment read
-    return read_align_likelihoods # Array of log likelihoods
+    return read_align_likelihoods # Array of log10 likelihoods
 
 
 def singleRead2Haplotype(haplotype, read, read_align_pos):
