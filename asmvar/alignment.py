@@ -132,6 +132,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                 read_start_in_hap = max(0, i - 8) # 0-base system
                 s = read_start_in_hap
                 e = s + hap_len_for_align
+                # The alignment score is the smaller the better and exactly
+                # mapping will be 0, others will larger than 0.
                 ali = align.fastAlignmentRoutine(haplotype.sequence[s:e], 
                                                  read.seqs, 
                                                  read.qual, 
@@ -185,7 +187,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
         read_start_in_hap = max(0, i - 8)
         s = read_start_in_hap 
         e = s + hap_len_for_align 
-        # The score of exactly mapping will be 0, others will larger than 0.
+        # The alignment score is the smaller the better and exactly
+        # mapping will be 0, others will larger than 0.
         ali = align.fastAlignmentRoutine(haplotype.sequence[s:e], 
                                          read.seqs, read.qual, 
                                          hap_len_for_align, len(read),
