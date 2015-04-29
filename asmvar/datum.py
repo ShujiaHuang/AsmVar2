@@ -11,7 +11,7 @@ class CommonDatum(object):
     def __init__(self):
 
         ########## Common Value #############################################
-        self.mlol = np.log(10) / (-10) # use to shift map_qual to log value
+        self.mot = -0.1 # use to onvert the map_qual to be a log10 value
         #####################################################################
 
         ########## Haplotype Alignment ######################################
