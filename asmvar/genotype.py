@@ -5,6 +5,7 @@ This module will connect the `Haplotype` and `alignment` class
 """
 import copy
 from itertools import combinations as itertools_combinations
+import numpy as np
 
 import vcf
 import alignment as alg # The alignment module
@@ -40,7 +41,7 @@ class Diploid(object):
                                 time.
             `bam_readers`: A single bamfile reader opened by `pysam.AlignmentFile`
 
-        return a value coresponse to the likelihood.
+        return a value of the likelihood.
         """
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
@@ -50,6 +51,42 @@ class Diploid(object):
         self.hap2.likelihood = alg.alignReadToHaplotype(self.hap2,
                                                         read_buffer_dict,
                                                         bam_reader)
+        lksize1 = len(self.hap1.likelihood)
+        lksize2 = len(self.hap2.likelihood)
+        if lksize1 != lksize2:
+            raise ValueError('[ERROR] The two haplotype in this diploid must'
+                             'have the same number alignment of reads. But '
+                             'the number is %s and %s .' % (lksize1, lksize2))
+
+        likelihood = 0.0
+        # Calculate the log10 likelihood for this diploid region
+        for i in range(lksize1):
+
+            log10lk1 = self.hap1.likelihood[i] 
+            log10lk2 = self.hap2.likelihood[i] 
+
+            # Almost good to 1000 times. Just take the highest and forget 
+            # the small one
+            if abs(log10lk1 - log10lk2) >= 3.0:
+                likelihood += (np.log10(0.5) + max(log10lk1, log10lk2))
+
+            # The likelihoods of the two haplotypes are almost the same. This
+            # could just happens when either they both bad fits or both are 
+            # perfect match. Any way the read lies in a position that it 
+            # cannot be used to distingush the two haplotypes.
+            elif abs(log10lk1 - log10lk2) <= 1e-3:
+                likelihood += log10lk1
+
+            # Calculate as the normal way: Combine the two likelihood
+            else:
+                prob = 0.5 * (np.power(10, log10lk1) + np.power(10, log10lk2))
+                likelihood += np.log10(prob) # a log10 value
+
+        # Generally, likelihood should always < 0, but it may > 0, once we
+        # adjust with flank region of haplotype in the `alignReadToHaplotype`
+        # process.
+        return likelihood
+
 
 def generateAllGenotypes(ref_fa_stream, max_read_len, winvar):
     """
