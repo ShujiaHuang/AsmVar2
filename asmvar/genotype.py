@@ -45,6 +45,7 @@ class Diploid(object):
         """
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
+        # Remember these likelihood will be changed follew different bamfile
         self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
                                                         read_buffer_dict,
                                                         bam_reader)
@@ -88,23 +89,23 @@ class Diploid(object):
         return likelihood
 
 
-def generateAllGenotypes(ref_fa_stream, max_read_len, winvar):
+def generateAllGenotypes(haplotypes):
     """
-    Generate a list of potentail genotypes.
+    Generate a list of potentail genotypes. 
     """
     gentypes   = []
-    haplotypes = _generateAllHaplotypeByVariants(ref_fa_stream, 
-                                                 max_read_len, 
-                                                 winvar)
     index = range(len(haplotypes))
     for i in index:
         for j in index[i:]:
             # Create Diploid
-            gentypes.append(Diploid(haplotypes[i], haplotypes[j]))
+            # Each element is [diploid, hap_hash_id1, hap_hash_id2]
+            # hash_id is the identify code of each haplotype!
+            gentypes.append([Diploid(haplotypes[i], haplotypes[j]), 
+                             hash(haplotypes[i]), hash(haplotypes[j])])
 
     return gentypes
 
-def _generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
+def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     """
     Generate all the potential haplotype in the window of `winwar`.
     And return a list of haplotype, corresponing to all the possible
