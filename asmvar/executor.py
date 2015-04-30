@@ -76,49 +76,61 @@ class VariantsGenotype(object):
             """
             Genotype the haplotypes in each windows.
             """
+            # Gernerate all a list of haplotypes by the combination of `winvar`
+            haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
+                                                            self.opt.max_read_len,
+                                                            winvar)
+            hap2id = {hash(h):i for i, h in enumerate(haplotypes)}
             # Likelihood of each individual for all genotypes in the window.
             # The 'row' represent to each genotypes  
             # The 'colum' represent to each individuals
             # And it's a numpy array
-            genotype_likelihoods = self.set_genotype_likelihood(winvar)
+            # CAUSION: These are variants' genotype likelihood, each value is
+            # a likelihood for each individual in one diploid.
+            genotype_likelihoods, genotype_hap_hash_id = 
+                self.set_genotype_likelihood(haplotypes)
 
             # Now move to the next step. Use EM
 
-    def set_genotype_likelihood(self, winvar):
+    def set_genotype_likelihood(self, haplotypes):
         """
-        Setting the genotypes for haplotyp of 'winvar' and return.
+        Setting the genotypes of the diploid combinated by 'haplotypes' 
+        and return.
 
         Args:
-            `winvar`: It's dict(chrom=chrom, start=start, end=end, variant=var)
+            `haplotypes`: A list of Haplotype
 
         return a numpy array with individual likelihood for each genotype
         """
-        genotypes = gnt.generateAllGenotypes(self.ref_fasta, 
-                                             self.opt.max_read_len,
-                                             winvar)
+        genotypes = gnt.generateAllGenotypes(haplotypes)
+ 
         # Record buffer prevents to calculating again and saving time. 
         # But it must be a temporary value and clean the old data for each
         # genotype, or it'll cost a huge memory and it'll absolutely run  
-        # out all the machine memory  
+        # out all the machine memory.  
         read_buffer_dict = {}
         # Record the genotype likelihood for genotyping 
         genotype_likelihoods = []
+        # Record the two haplotypes' hash id of each genotype
+        diploid_hap_hash_id  = []
         for gt in genotypes: 
+            # `gt` is a list: [diploid, hap1_hash_id, hap2_hash_id]
     
             # Calculte the genotype likelihood for each individual
             individual_loglikelihoods = self._calLikelihoodForIndividual(
-                gt, read_buffer_dict) # A array of log10 value
+                gt[0], read_buffer_dict) # A array of log10 value
 
             # The 'row' represent to each genotypes 
             # The 'colum' represent to each individuals 
             genotype_loglikelihoods.append(individual_loglikelihoods)
+            genotype_hap_hash_id.append([gt[1], gt[2]])
 
         # Rescale genotype likelihood and covert to numpy array for the
         # next step. And causion: the array may contain value > 0 here,
         # before re-scale. It's log10 value 
         genotype_likelihoods = self._reScaleLikelihood(genotype_likelihoods)
 
-        return genotype_likelihoods
+        return genotype_likelihoods, genotype_hap_hash_id
 
     def _reScaleLikelihood(self, likelihoods):
         """
