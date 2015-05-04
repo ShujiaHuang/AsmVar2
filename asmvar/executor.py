@@ -63,7 +63,7 @@ class VariantsGenotype(object):
         # [index, bamReader] each bamfile represent to one sample
         self.bam_readers = {bf[0]:[i, pysam.AlignmentFile(bf[1])] 
                             for id, bf in enumerate(bamfiles)}
-        # Index => SampleID
+        # Sample's index => SampleID
         self.sample_index = {v[0]:k for k, v in self.bam_readers.items()}
         self.opt = options
 
@@ -74,23 +74,44 @@ class VariantsGenotype(object):
         # loop all the vatiant windows
         for winvar in self._windowing():
             """
-            Genotype the haplotypes in each windows.
+            Genotype the haplotypes in each windows and output the VCF
             """
-            # Gernerate all a list of haplotypes by the combination of `winvar`
+            # Gernerate a list of haplotypes by all the combination of `winvar`
             haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
                                                             self.opt.max_read_len,
                                                             winvar)
-            hap2id = {hash(h):i for i, h in enumerate(haplotypes)}
+            # Use haplotype's hash id to tracking the index of each haplotype
+            hap_idx = {hash(h):i for i, h in enumerate(haplotypes)}
+
             # Likelihood of each individual for all genotypes in the window.
-            # The 'row' represent to each genotypes  
-            # The 'colum' represent to each individuals
+            # The 'row' represent to genotypes  
+            # The 'colum' represent to individuals
             # And it's a numpy array
             # CAUSION: These are variants' genotype likelihood, each value is
             # a likelihood for each individual in one diploid.
+            # `genotype_likelihoods`: Recorde the likelihood of each 
+            #                         genotype [It's not a log value now]
+            # `genotype_hap_hash_id`: Recorde the genotypes by haplotype hahs id
             genotype_likelihoods, genotype_hap_hash_id = 
                 self.set_genotype_likelihood(haplotypes)
 
-            # Now move to the next step. Use EM
+            # Now move to the next step. Use EM to calculate the haplotype
+            # frequence in population scale.
+            hap_freq = self.calHaplotypeFreq(genotype_likelihoods, 
+                                             genotype_hap_hash_id,
+                                             haplotypes)
+
+    def calHaplotypeFreq(self, genotype_likelihoods, genotype_hap_hash_id,
+                         haplotypes):
+        """
+        Calculate the haplotype frequence.
+        """
+        hap_num       = len(haplotypes)
+        init_hap_freq = 1.0 / hap_num
+
+        hap_freq = [init_hap_freq for i in range(hap_num)]
+        
+        
 
     def set_genotype_likelihood(self, haplotypes):
         """
@@ -110,15 +131,15 @@ class VariantsGenotype(object):
         # out all the machine memory.  
         read_buffer_dict = {}
         # Record the genotype likelihood for genotyping 
-        genotype_likelihoods = []
+        individual_loglikelihoods = []
         # Record the two haplotypes' hash id of each genotype
-        diploid_hap_hash_id  = []
+        diploid_hap_hash_id = []
         for gt in genotypes: 
             # `gt` is a list: [diploid, hap1_hash_id, hap2_hash_id]
     
             # Calculte the genotype likelihood for each individual
             individual_loglikelihoods = self._calLikelihoodForIndividual(
-                gt[0], read_buffer_dict) # A array of log10 value
+                gt[0], read_buffer_dict) # An array of log10 value
 
             # The 'row' represent to each genotypes 
             # The 'colum' represent to each individuals 
@@ -127,10 +148,23 @@ class VariantsGenotype(object):
 
         # Rescale genotype likelihood and covert to numpy array for the
         # next step. And causion: the array may contain value > 0 here,
-        # before re-scale. It's log10 value 
-        genotype_likelihoods = self._reScaleLikelihood(genotype_likelihoods)
+        # before re-scale. They are all probability now after rescaling.
+        # [NOW THEY ARE NOT log10 value any more!!]
+        genotype_likelihoods = self._reScaleLikelihood(individual_loglikelihoods)
 
         return genotype_likelihoods, genotype_hap_hash_id
+    
+    def _normalisation(self, probability):
+        """
+        Nomalisation the probablity by using sum up the values of 
+        each individual.
+        """
+        probability = np.array(probability, dtype = float)
+
+        # Sum up the log likelihood for each individual of all genotypes
+        sum_prob = probability.sum(axis = 0) # Sum up value by colums
+
+        return probability / sum_prob # Normalisation
 
     def _reScaleLikelihood(self, likelihoods):
         """
@@ -139,13 +173,21 @@ class VariantsGenotype(object):
         max_log = -1e6 # Threshold for maxmun likelihood value
         likelihoods = np.array(likelihoods, dtype = float)
 
-        # Get the max log likelihood for each individual among all genotypes
-        max_loglk = likelihoods.max(axis = 0) # Find max value by colums
+        # We must assign the None to be 0.0. I choice 0.0 instead of other
+        # value, cause I think we should just treat the probability to be 
+        # 1.0 if the likelihood is None in individual of specify genotype.
+        # [WE JUST DO IT HERE]
+        lh_isnan = np.isnan(likelihoods)
+        likelihoods[lh_isnan] = 0.0
+
+        # Get the max log likelihood for each individual of all genotypes
+        max_loglk = likelihoods.max(axis = 0) # Find the max value by colums
         # If all the likelihoods are small for some specify individuals, we
         # should still guarantee they're still small even after re-scaling.
         max_loglk[max_loglk < max_log] = max_log 
 
-        return likelihoods / max_loglk # Re-scale by maxmum likelihood
+        # Re-scale by maxmum likelihood and the values are probability 
+        return np.power(10, likelihoods - max_loglk)
 
     def _calLikelihoodForIndividual(self, genotype, read_buffer_dict):
         """
@@ -155,15 +197,16 @@ class VariantsGenotype(object):
         return an array loglikelihood for this genotype
         """
 
-        likelihoods = [None for i in self.sample_index] # initial array's size
+        # Initial likelihood to be None
+        likelihoods = [None for i in self.sample_index]
         for _, br in self.bam_readers.items():
             # Each bam file represent to one sample. Get the likelihood
             # by reads realignment
-            lh = genotype.calLikelihood(read_buffer_dict, br[1])
+            lh = genotype.calLikelihood(read_buffer_dict, br[1]) # log10 value
             # Storing by individual index. br[0] is the index for individual
             likelihoods[br[0]] = lh
 
-        return likelihoods # A array of log10 value
+        return likelihoods # A 1D-array of log10 value
 
     def _windowing(self):
         """
