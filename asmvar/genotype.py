@@ -41,7 +41,7 @@ class Diploid(object):
                                 time.
             `bam_readers`: A single bamfile reader opened by `pysam.AlignmentFile`
 
-        return a value of the likelihood.
+        return a log10 likelihood.
         """
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
@@ -81,10 +81,10 @@ class Diploid(object):
             # Calculate as the normal way: Combine the two likelihood
             else:
                 prob = 0.5 * (np.power(10, log10lk1) + np.power(10, log10lk2))
-                likelihood += np.log10(prob) # a log10 value
+                likelihood += np.log10(prob) # now it's a log10 value
 
         # Generally, for our situation the likelihood should always < 0, but 
-        # it may > 0, once ww adjust with flank region of haplotype in the 
+        # it may > 0, once we adjust with flank region of haplotype in the 
         # `alignReadToHaplotype` process.
         return likelihood
 
