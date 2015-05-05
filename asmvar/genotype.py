@@ -86,7 +86,8 @@ class Diploid(object):
         # Generally, for our situation the likelihood should always < 0, but 
         # it may > 0, once we adjust with flank region of haplotype in the 
         # `alignReadToHaplotype` process.
-        return likelihood
+        read_map_count = lksize1 # Count of mapping reads of this sample
+        return likelihood, read_map_count
 
 
 def generateAllGenotypes(haplotypes):
