@@ -96,9 +96,9 @@ class VariantCandidateReader(object):
 
                     # TO DO: This trim strategy is greedy algorithm, which is 
                     # not the best method. 
-                    # e.g: Assume the turth is [A, ATC] 
-                    # If we see [AA, ATCA] then will be [A, TCA] instead of
-                    # [A, ATC] after triming 
+                    # e.g: Assume the turth is [A, AATCA] 
+                    # If we see [AA, AATCAA] then will be [A, ATCAA] instead of
+                    # [A, AATCA] after triming 
                     for alt in r.ALT:
                         # Non snp variants may leading and/or trailing bases 
                         # trimming.
@@ -107,15 +107,22 @@ class VariantCandidateReader(object):
 
                         pos, ref = r.POS, r.REF
                         # Trim the leading bases, should keep at lest 1 base 
-                        while (alt.sequence[0].upper() == ref[0].upper() and 
-                               len(ref) > 1 and len(alt) > 1):
+                        while (len(ref) > 1 and len(alt) > 1 and 
+                               alt.sequence[:2].upper() == ref[:2].upper()):
+                            # At first I think if we just set
+                            # `alt.sequence[0].upper() == ref[0].upper()` is
+                            # still OK. But a few minutes, I find that's wrong!
+                            # We must always guarrantee the first base of REF
+                            # and ALT be the same even after we delete it!
+                            # That is why I have compare the two first bases 
+                            # not just one!
                             alt.sequence = alt.sequence[1:]
                             ref  = ref[1:]
                             pos += 1
 
                         # Trim the trailing bases, should keep at lest 1 base
-                        while (alt.sequence[-1].upper() == ref[-1].upper() and
-                               len(ref) > 1 and len(alt) > 1):
+                        while (len(ref) > 1 and len(alt) > 1 and 
+                               alt.sequence[-1].upper() == ref[-1].upper()):
                             alt.sequence = alt.sequence[:-1]
                             ref = ref[:-1]
 
