@@ -93,14 +93,15 @@ class VariantsGenotype(object):
             # `genotype_likelihoods`: Recorde the likelihood of each 
             #                         genotype [It's not a log value now]
             # `genotype_hap_hash_id`: Recorde the genotypes by haplotype hahs id
-            genotype_likelihoods, genotype_hap_hash_id = 
-                self.set_genotype_likelihood(haplotypes)
+            genotype_likelihoods, genotype_hap_hash_id = (
+                self.set_genotype_likelihood(haplotypes))
 
             # Now move to the next step. Use EM to calculate the haplotype
             # frequence in population scale.
             hap_freq = self.calHaplotypeFreq(genotype_likelihoods, 
                                              genotype_hap_hash_id,
                                              haplotypes)
+            
 
     def calHaplotypeFreq(self, genotype_likelihoods, genotype_hap_hash_id,
                          haplotypes):
@@ -141,6 +142,7 @@ class VariantsGenotype(object):
             tmp_lh = [glh * hp for glh in genotype_likelihoods[i]] 
             emlikelihood.append(tmp_lh)
 
+        # Normalisation the genotype likelihood
         emlikelihood = self._normalisation(emlikelihood)
 
         # M Step: Re-estimate parameters.
@@ -151,8 +153,10 @@ class VariantsGenotype(object):
                 tmp_freq[h_idx[h1]] += lk
                 tmp_freq[h_idx[h2]] += lk
 
-        maxdiff  = np.abs(tmp_freq - hap_freq).max()
-        hap_freq = tmp_freq # OK, update the row haplotype frequence now!
+        tmp_freq /= len(hap_freq) # From frequence to probability
+        maxdiff   = np.abs(tmp_freq - hap_freq).max()
+        hap_freq  = tmp_freq # OK, update the row haplotype frequence now!
+
         return maxdiff
 
     def set_genotype_likelihood(self, haplotypes):
