@@ -13,6 +13,9 @@ import numpy as np
 import variantutil as vutil
 import genotype as gnt
 
+import datum as DM  # The global common datum 
+COMDM = DM.CommonDatum()
+
 class VariantCaller(object):
     """
     A class for variants' calling.
@@ -80,8 +83,6 @@ class VariantsGenotype(object):
             haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
                                                             self.opt.max_read_len,
                                                             winvar)
-            # Use haplotype's hash id to tracking the index of each haplotype
-            hap_idx = {hash(h):i for i, h in enumerate(haplotypes)}
 
             # Likelihood of each individual for all genotypes in the window.
             # The 'row' represent to genotypes  
@@ -109,9 +110,50 @@ class VariantsGenotype(object):
         hap_num       = len(haplotypes)
         init_hap_freq = 1.0 / hap_num
 
-        hap_freq = [init_hap_freq for i in range(hap_num)]
+        # Use haplotype's hash id to tracking the index of each haplotype
+        hap_idx  = {hash(h):i for i, h in enumerate(haplotypes)}
+        hap_freq = np.array([init_hap_freq for i in range(hap_num)])
         
-        
+        # Start to call EM algorithm.
+        eps     = min(1e-3, 1.0 / (2 * hap_num))
+        maxdiff = np.inf
+        niter   = 0
+        while maxdiff > eps and niter < DM.max_iter_num:
+            # `hap_freq` will be updated automaticly when we call self.EM().
+            maxdiff = self.EM(genotype_likelihoods, genotype_hap_hash_id,
+                              hap_idx, hap_freq)
+            niter  += 1
+
+        return hap_freq
+    
+    def EM(self, genotype_likelihoods, genotype_hap_hash_id, h_idx, hap_freq):
+        """
+        Perform one EM update. The update result will still store in `hap_freq`
+        """
+        # E Step: Estimate the expeceted values.
+        emlikelihood = []
+        for i, (h1, h2) in enumerate(genotype_hap_hash_id): # loop genotypes
+            # Hardy-Weibery law to calculate "hp"
+            # For 'homozygote'  : hp = hap1_freq * hap2_freq
+            # For 'heterozygote': hp = 2 * hap1_freq * hap2_freq
+            hp = hap_freq[h_idx[h1]] * hap_freq[h_idx[h2]] * (1 + (h1 != h2))
+
+            tmp_lh = [glh * hp for glh in genotype_likelihoods[i]] 
+            emlikelihood.append(tmp_lh)
+
+        emlikelihood = self._normalisation(emlikelihood)
+
+        # M Step: Re-estimate parameters.
+        tmp_freq = np.zeros(len(hap_freq)) # Initial to 0.0
+        for i, (h1, h2) in enumerate(genotype_hap_hash_id): # loop genotypes
+            
+            for lk in emlikelihood[i]:
+                tmp_freq[h_idx[h1]] += lk
+                tmp_freq[h_idx[h2]] += lk
+
+        maxdiff  = np.abs(tmp_freq - hap_freq).max()
+        hap_freq = tmp_freq # OK, update the row haplotype frequence now!
+        return maxdiff
 
     def set_genotype_likelihood(self, haplotypes):
         """
@@ -149,7 +191,7 @@ class VariantsGenotype(object):
         # Rescale genotype likelihood and covert to numpy array for the
         # next step. And causion: the array may contain value > 0 here,
         # before re-scale. They are all probability now after rescaling.
-        # [NOW THEY ARE NOT log10 value any more!!]
+        # [NOW THEY ARE NOT log10 value any more!!] It's a 2D-array
         genotype_likelihoods = self._reScaleLikelihood(individual_loglikelihoods)
 
         return genotype_likelihoods, genotype_hap_hash_id
@@ -163,8 +205,10 @@ class VariantsGenotype(object):
 
         # Sum up the log likelihood for each individual of all genotypes
         sum_prob = probability.sum(axis = 0) # Sum up value by colums
+        if sum_prob > 0:
+            probability = probability / sum_prob # Normalisation 
 
-        return probability / sum_prob # Normalisation
+        return probability
 
     def _reScaleLikelihood(self, likelihoods):
         """
