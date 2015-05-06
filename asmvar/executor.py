@@ -92,18 +92,58 @@ class VariantsGenotype(object):
             # a likelihood for each individual in one diploid.
             # `genotype_likelihoods`: Recorde the likelihood of each 
             #                         genotype [It's not a log value now]
-            # `genotype_hap_hash_id`: Recorde the genotypes by haplotype hahs id
-            genotype_likelihoods, genotype_hap_hash_id = (
-                self.set_genotype_likelihood(haplotypes))
+            # `genotype_hap_hash_id`: Recorde the genotypes by haplotypes' hash
+            #                         id. [hap1_hash_id, hap2_hash_id]
+            # `sample_map_nread`: It's used for recording the count of mapped
+            #                     reads of this sample. And it's 2-d array 
+            #                     [gnt][sample] 
+            # See!! We don't have to reture the 'genotype' value, we just need
+            # 'genotype_hap_hash_id' and 'haplotypes' , then we could get back
+            # all the genotype easily! 
+            genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
+                self._set_genotype_likelihood(haplotypes))
 
             # Now move to the next step. Use EM to calculate the haplotype
             # frequence in population scale.
-            hap_freq = self.calHaplotypeFreq(genotype_likelihoods, 
-                                             genotype_hap_hash_id,
-                                             haplotypes)
-            
+            haplotypes_freq = self._calHaplotypeFreq(genotype_likelihoods,
+                                                     genotype_hap_hash_id,
+                                                     haplotypes)
 
-    def calHaplotypeFreq(self, genotype_likelihoods, genotype_hap_hash_id,
+            # convert to np.array.
+            genotype_hap_hash_id = np.array(genotype_hap_hash_id)
+            sample_map_nread     = np.array(sample_map_nread)
+
+            # now we should start to pick the best genotype by finding the
+            # max genotype of each individual in this window
+            best_gnt_index       = genotype_likelihoods.argmax(axis = 0)
+            individual_gnt_calls = genotype_hap_hash_id[best_gnt_index]
+            # For the individual which have no reads aligning in this region
+            individual_gnt_calls[sample_map_nread == 0] = None # No genotype
+            
+            # Now calcute the posterior probability for each 'winvar' variant
+            # Type: dict(chrom = chrom, start = start, end = end, variant = var)
+            # 'var_posterior_prob' is all the posterior porbability of variants
+            # in `winvar['variants']`
+            
+            # I think var_posterior_prob shuld be a dict value. and the key is
+            # the variant, the value is the posterior!
+            var_posterior_prob = self.calVarPosteriorProb(haplotypes,
+                                                          haplotypes_freq, 
+                                                          genotype_hap_hash_id)
+
+    def calVarPosteriorProb(self, haplotypes, hap_freq, genotype_hap_hash_id):
+        """
+        """
+        posterior = {}
+        done_var  = []
+        for hap in haplotypes:
+            for v in hap.variants:
+                # I think var_posterior_prob shuld be a dict value. and the
+                # key is the variant, the value is the posterior!
+                post_prob    = self.calPosterior(v)
+                posterior[v] = post_prob 
+
+    def _calHaplotypeFreq(self, genotype_likelihoods, genotype_hap_hash_id,
                          haplotypes):
         """
         Calculate the haplotype frequence.
@@ -121,13 +161,13 @@ class VariantsGenotype(object):
         niter   = 0
         while maxdiff > eps and niter < DM.max_iter_num:
             # `hap_freq` will be updated automaticly when we call self.EM().
-            maxdiff = self.EM(genotype_likelihoods, genotype_hap_hash_id,
-                              hap_idx, hap_freq)
+            maxdiff = self._EM(genotype_likelihoods, genotype_hap_hash_id,
+                               hap_idx, hap_freq)
             niter  += 1
 
         return hap_freq
     
-    def EM(self, genotype_likelihoods, genotype_hap_hash_id, h_idx, hap_freq):
+    def _EM(self, genotype_likelihoods, genotype_hap_hash_id, h_idx, hap_freq):
         """
         Perform one EM update. The update result will still store in `hap_freq`
         """
@@ -159,7 +199,7 @@ class VariantsGenotype(object):
 
         return maxdiff
 
-    def set_genotype_likelihood(self, haplotypes):
+    def _set_genotype_likelihood(self, haplotypes):
         """
         Setting the genotypes of the diploid combinated by 'haplotypes' 
         and return.
@@ -179,18 +219,24 @@ class VariantsGenotype(object):
         # Record the genotype likelihood for genotyping 
         individual_loglikelihoods = []
         # Record the two haplotypes' hash id of each genotype
-        diploid_hap_hash_id = []
+        genotype_hap_hash_id = []
+        sample_map_nread     = []
         for gt in genotypes: 
             # `gt` is a list: [diploid, hap1_hash_id, hap2_hash_id]
     
             # Calculte the genotype likelihood for each individual
-            individual_loglikelihoods = self._calLikelihoodForIndividual(
-                gt[0], read_buffer_dict) # An array of log10 value
+            individual_loglikelihoods, sample_nread = (
+                self._calLikelihoodForIndividual(gt[0], read_buffer_dict))
 
             # The 'row' represent to each genotypes 
             # The 'colum' represent to each individuals 
             genotype_loglikelihoods.append(individual_loglikelihoods)
             genotype_hap_hash_id.append([gt[1], gt[2]])
+
+            # read count each genotype/sample 
+            if not sample_map_nread:
+                # Assign one time is enough, they'll all be the same!
+                sample_map_nread = sample_nread
 
         # Rescale genotype likelihood and covert to numpy array for the
         # next step. And causion: the array may contain value > 0 here,
@@ -198,7 +244,7 @@ class VariantsGenotype(object):
         # [NOW THEY ARE NOT log10 value any more!!] It's a 2D-array
         genotype_likelihoods = self._reScaleLikelihood(individual_loglikelihoods)
 
-        return genotype_likelihoods, genotype_hap_hash_id
+        return genotype_likelihoods, genotype_hap_hash_id, sample_map_nread
     
     def _normalisation(self, probability):
         """
@@ -218,7 +264,7 @@ class VariantsGenotype(object):
         """
         Re-scale the genotype log likelihoods by using maximum value
         """
-        max_log = -1e6 # Threshold for maxmun likelihood value
+        max_log = -1e7 # Threshold for maxmun likelihood value
         likelihoods = np.array(likelihoods, dtype = float)
 
         # We must assign the None to be 0.0. I choice 0.0 instead of other
@@ -247,14 +293,19 @@ class VariantsGenotype(object):
 
         # Initial likelihood to be None
         likelihoods = [None for i in self.sample_index]
+        read_counts = [None for i in self.sample_index]
         for _, br in self.bam_readers.items():
             # Each bam file represent to one sample. Get the likelihood
             # by reads realignment
-            lh = genotype.calLikelihood(read_buffer_dict, br[1]) # log10 value
+
+            # `lh` is log10 value and `rc` is the count of mapping reads
+            lh, rc = genotype.calLikelihood(read_buffer_dict, br[1])
             # Storing by individual index. br[0] is the index for individual
             likelihoods[br[0]] = lh
+            read_counts[br[0]] = rc
 
-        return likelihoods # A 1D-array of log10 value
+        # 'likelihood' is a 1D-array of log10 value
+        return likelihoods, read_counts
 
     def _windowing(self):
         """
