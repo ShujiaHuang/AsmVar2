@@ -38,4 +38,9 @@ class CommonDatum(object):
         self.do_calcu_flank_score = False # Decide by myself used in `alignment`
         #####################################################################
 
+        ########## Genotyping ###############################################
+        ## For E-M step
+        self.max_iter_num = 50
+        #####################################################################
+
 
