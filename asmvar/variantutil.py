@@ -7,9 +7,11 @@ import copy
 import logging
 import vcf
 
-logger = logging.getLogger('Log')
+import datum as DM  # The global common datum
+MODEL = DM.Model()
 
-#####################################################################
+logger = logging.getLogger('Log')
+###############################################################################
 
 class VariantCandidateReader(object):
     """
@@ -111,11 +113,11 @@ class VariantCandidateReader(object):
                                alt.sequence[:2].upper() == ref[:2].upper()):
                             # At first I think if we just set
                             # `alt.sequence[0].upper() == ref[0].upper()` is
-                            # still OK. But a few minutes, I find that's wrong!
-                            # We must always guarrantee the first base of REF
-                            # and ALT be the same even after we delete it!
-                            # That is why I have compare the two first bases 
-                            # not just one!
+                            # still OK. But after a few seconds, I find that's
+                            # wrong! We must always guarrantee the first base
+                            # of REF and ALT be the same even after we delete
+                            # it. That is why I have to compare the first two
+                            # bases insteading of just one!
                             alt.sequence = alt.sequence[1:]
                             ref  = ref[1:]
                             pos += 1
@@ -192,14 +194,56 @@ class VariantCandidateReader(object):
 
         return sorted(list(set(variants))) # Sorted by reference pos order 
 
+def calPrior(fa_stream, variant):
+    """
+    calculate and return the prior probability for this variant.
 
-def get_sequence_context(fa_stream, variant):
+    Use the module of Pindel
+
+    Args:
+        'variant': It's variant record by module: 'vcf.Reader'
+    """
+    prior = 0.0
+
+    if variant.is_snp:
+        # SNP
+        prior = 1e-3 / 3
+
+    elif len(variant.REF) == len(variant.ALT[0]):
+        # Substitution
+        diff_num = len(
+            [(x, y) for (x, y) in zip(variant.REF, variant.ALT[0]) if x != y])
+        prior = 5e-5 * (0.1 ** (diff_num - 1)) * (1.0 - 0.1)
+
+    elif len(variant.REF) == 1:
+        # Insertion. Use the most easy model this moment
+        # And I'll update it later as 'Platypus' in 'variant.calculatePrior'
+        prior = 1e-4 * 0.25 ** (len(variant.ALT[0]) - 1)
+    elif len(variant.ALT[0]) == 1: 
+        # Deletion. Use the most easy model this moment
+        # And I'll update it later as 'Platypus' in 'variant.calculatePrior'
+        prior = 1e-4 * 0.6 ** (len(variant.REF) - 1)
+    else:
+        # Replacement 
+        prior = 5e-6
+
+    return max(1e-10, prior)
+
+#def _indelPrior(fa_stream, variant, indel_size):
+    #"""
+    #Calculate indel prior, based on sequence context.
+    #"""
+    # MODEL
+    # context_size = 100
+    # sequence = get_sequence_context(fa_stream, variant)
+
+def get_sequence_context(fa_stream, variant, size = 10):
     """
     Return the sequence surrounding this variant's position.
     """
 
-    start = max(0, variant.POS - 10)
-    return fa_stream.fetch(variant.CHROM, start, variant.POS + 10)
+    start = max(0, variant.POS - size)
+    return fa_stream.fetch(variant.CHROM, start, variant.POS + size)
 
 def homoRunForOneVariant(fa_stream, variant):
 
