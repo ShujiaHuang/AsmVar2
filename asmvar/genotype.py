@@ -15,7 +15,7 @@ class Diploid(object):
     """
     A class represent a diploid genotype. It store two haplotype
     """
-    def __init__(self, haplotype1, haplogtype2):
+    def __init__(self, haplotype1, haplotype2):
         """
         Constructor.
 
@@ -23,7 +23,7 @@ class Diploid(object):
             `haplotype1`: The data type is Haplotype
             `haplotype2`: The data type is Haplotype
         """
-        if hap1.hapregion_hash_id != hap1.hapregion_hash_id:
+        if haplotype1.hapregion_hash_id != haplotype2.hapregion_hash_id:
             raise ValueError('[ERROR] The two haplotypes did not have the same '
                              'haplotype region, could not build up a diploid.')
 
@@ -59,7 +59,10 @@ class Diploid(object):
                              'have the same number alignment of reads. But '
                              'the number is %s and %s .' % (lksize1, lksize2))
 
-        likelihood = 0.0
+        likelihood = None
+        if lksize1: # Not empty 
+            likelihood = 0.0
+
         # Calculate the log10 likelihood for this diploid region
         for i in range(lksize1):
 
@@ -87,6 +90,7 @@ class Diploid(object):
         # it may > 0, once we adjust with flank region of haplotype in the 
         # `alignReadToHaplotype` process.
         read_map_count = lksize1 # Count of mapping reads of this sample
+
         return likelihood, read_map_count
 
 
@@ -154,7 +158,6 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
                 haplist.append(hap)
 
     return haplist
-    
 
 
 

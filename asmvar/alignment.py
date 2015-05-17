@@ -87,10 +87,11 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     """
     # hash the halotype.sequence and read.seqs. And just do it here, and 
     # just do it one time!!!
-    if read.hash is None:
+    if read.seq_hash is None:
          read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
     if haplotype.seq_hash is None:
         haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
+    if haplotype.gap_open is None:
         haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
                                                       COMDM.homopol_penalty)
 
@@ -116,8 +117,8 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     # haplotype by hash searching.
     
     hap_len_for_align = len(read) + ALIMER
-    aln1 = ['\0' for i in range(2 * len(read) + ALIMER)]
-    aln2 = ['\0' for i in range(2 * len(read) + ALIMER)]
+    aln1 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
+    aln2 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
     best_ali_score = 1000000 # A big enough bad score
     best_ali_pos   = -1
     firstpos       = 0
@@ -218,7 +219,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
     # Finaly, we should convert the score to be a log10 value
     # The probability of read aligne error (convert to be a log10 value)
-    prob_read_map_error = read.mapq * COMDM.mot
+    prob_read_map_error = read.mapqual * COMDM.mot
     # The probability of read aligne correct (still keep the log10 value)
     prob_read_map_right = np.log10(1.0 - np.power(10, prob_read_map_error))
 

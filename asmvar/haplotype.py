@@ -86,9 +86,9 @@ class Haplotype(object):
         as we want two haplotypes to give the same hash id if they have the 
         same positions and sequences.
         """
-        if self.hash is None:
+        if self.hash_id is None:
             self.hash_id = hash((self.chrom, self.start_pos, self.end_pos, 
-                                 slef.sequence))
+                                 self.sequence))
 
         return self.hash_id
 
