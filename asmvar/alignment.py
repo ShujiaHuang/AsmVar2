@@ -219,7 +219,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
     # Finaly, we should convert the score to be a log10 value
     # The probability of read aligne error (convert to be a log10 value)
-    prob_read_map_error = read.mapqual * COMDM.mot
+    prob_read_map_error = min(-1e-6, read.mapqual * COMDM.mot)
     # The probability of read aligne correct (still keep the log10 value)
     prob_read_map_right = np.log10(1.0 - np.power(10, prob_read_map_error))
 
