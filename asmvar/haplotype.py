@@ -42,8 +42,6 @@ class Haplotype(object):
         self.variants    = copy.deepcopy(variants) # Must use deepcopy!!
         self.sequence    = None # The haplotype sequence
         self.hash_id     = None # A hash id use for identified this haplotype
-        self.seq_hash    = None # Encode a hash table for self.sequence used 
-                                # for mapping when we needed
 
         # This is a haplotype region identify. and could be used for guarantee 
         # the two haplotypes have the same region when we construct diploid.
@@ -73,6 +71,8 @@ class Haplotype(object):
         # we need it and the ASCII of each charter of the is a penalize value
 		# for gap open
         self.gap_open   = None # will be string type
+        self.seq_hash   = None # Encode a hash table for self.sequence used 
+                               # for mapping when we needed
         self.likelihood = []   # likelihood calculated for each read during
                                # re-aligning process
 

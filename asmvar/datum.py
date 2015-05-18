@@ -76,7 +76,6 @@ class CommonDatum(object):
         #####################################################################
 
         ########## Some common values #######################################
-        #self.min_log   = -1e7 # Min threshold for likelihood value
         self.min_float  = 1e-300 # The min float value.
         ########## Genotyping ###############################################
         ## For E-M step

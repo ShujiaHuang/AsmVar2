@@ -13,7 +13,7 @@ class SeqHashTable(object):
         """
         Initial hash
         """
-        self.hashmer      = hashmer # The hash size, should be integer
+        self.hashmer      = hashmer # The hash-mer size, should be integer
         self.hash_table   = {}
         self.hash_pointer = []
 
@@ -29,7 +29,7 @@ class SeqHashTable(object):
         """
 
         if seq is None or len(seq) == 0 or len(seq) < self.hashmer:
-            return;
+            return
 
         for i in range(len(seq) - self.hashmer + 1): 
 

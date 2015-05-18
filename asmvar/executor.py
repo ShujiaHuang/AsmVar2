@@ -8,6 +8,7 @@ to rule them all, in a word, it's "The Ring".
 """
 import pysam
 import vcf
+import sys
 import numpy as np
 
 import variantutil as vutil
@@ -121,7 +122,7 @@ class VariantsGenotype(object):
             best_gnt_index       = genotype_likelihoods.argmax(axis = 0)
             individual_gnt_calls = genotype_hap_hash_id[best_gnt_index]
             # For the individual which have no reads aligning in this region
-            individual_gnt_calls[sample_map_nread == 0] = None # No genotype
+            individual_gnt_calls[sample_map_nread == 0] = [-1, -1] # No genotype
             
             # Now calcute the posterior probability for each 'winvar' variant
             # Type: dict(chrom = chrom, start = start, end = end, variant = var)
@@ -148,11 +149,11 @@ class VariantsGenotype(object):
             for h in haplotypes:
                 # The size of ALT in each haplotype's variants should just 
                 # be one!
-                hap_alt_var_hash.append([hash((hv.CHROM, hv.POS, hv.ALT[0])) 
+                hap_alt_var_hash.append([hash((hv.CHROM,hv.POS,str(hv.ALT[0]))) 
                                     for hv in h.variants])
 
             h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
-            for v in wvar['variant']:
+            for v in winvar['variant']:
                 # Each variant means one position and remember there's REF
                 # in v.ALT and REF is the first element.
                 vcf_data_line = {}
@@ -173,8 +174,11 @@ class VariantsGenotype(object):
                     phred_non_ref_p    = self._phred(non_ref_p)
                     phred_var_gnt_posterior = self._phred(var_gnt_posterior)
                     
+                    ale1, ale2 = int(ale1), int(ale2)
+                    if ale1 == -1: ale1 = '.' # '-1' represent fail phased
+                    if ale2 == -1: ale2 = '.' # '-1' represent fail phased
                     GT = [str(ale1), '/', str(ale2)]
-                    PL = [round(-10 * np.log10(max(x / max_lh, 1e-300)), 2) 
+                    PL = [round(10 * np.log10(max(x / max_lh, 1e-300)), 2) 
                           for x in lh[:,0]]
                     # Normalization the genotype with max likelihood
                     if len(v.ALT) == 2: # There's REF in 'ALT', so we must use 2
@@ -194,11 +198,12 @@ class VariantsGenotype(object):
                     else:
                         # multiple alleles
                         normarl_GLs = [-1, -1, -1]
-                    vcf_data_line[s]= dict(GT = GT, GQ = var_gnt_posterior, 
+                    vcf_data_line[s]= dict(GT = GT, 
+                                           GQ = phred_var_gnt_posterior, 
                                            GL = normarl_GLs, PL = PL)
 
                 # Output VCF line
-                print vcf_data_line, '[LoL]', v # [DEL] Just Test!!
+                print v, '[LoL]=>[LoL]', vcf_data_line # [DEL] Just Test!!
 
     def _phred(self, prob):
         """
@@ -226,7 +231,7 @@ class VariantsGenotype(object):
             `genotype_hap_hash_id`: Hash id of two haplotypes in each genotype
             `map_read_num`: Mapping reads number of this individual
         """
-        alt_hash = [hash((variant.CHROM, variant.POS, a)) 
+        alt_hash = [hash((variant.CHROM, variant.POS, str(a))) 
                     for a in variant.ALT]
 
         non_ref_posterior, ref_posterior = 0.0, 0.0
@@ -258,9 +263,6 @@ class VariantsGenotype(object):
                     if ((not var1_in_hap1 and not var1_in_hap2) and
                         (not var2_in_hap1 and not var2_in_hap2)): continue
 
-                    #if (variant.ALT[i] == variant.REF and 
-                    #    variant.ALT[j] == variant.REF):
-
                     # Only use EM frequencies for large-ish populations.
                     if individual_num > 25:
                         hp = ((1 + (h1 != h2)) * hap_freq[h_idx[h1]] * 
@@ -277,7 +279,7 @@ class VariantsGenotype(object):
                     ref_posterior += marginal_gnt_lh
 
                 ## Phased process
-                phase_i, phase_j = '.', '.'
+                phase_i, phase_j = -1, -1
                 if variant.ALT[j] == variant.ALT[i]:
                     # Homo Ref or Homo Varirant. Do't need to phase
                     phase_i, phase_j = i, j
@@ -294,7 +296,7 @@ class VariantsGenotype(object):
                         phase_i, phase_j = i, j 
                     elif var1_in_hap2 and var2_in_hap1:
                         phase_i, phase_j = j, i 
-                # phase_i and phase_j could be used to represent phased 
+                # phase_i and phase_j could be used to represent the phased 
                 # genotype.
                 likelihoods.append([marginal_gnt_lh, phase_i, phase_j])
 
@@ -348,7 +350,7 @@ class VariantsGenotype(object):
                     prob_mat_without_v.sum(axis = 0).sum())
 
                 delta = sum_log10_prob_without_var - sum_log10_prob
-                ratio = max(COMDM.min_float, np.power(delta))
+                ratio = max(COMDM.min_float, np.power(10, delta))
 
                 prior = vutil.calPrior(self.ref_fasta, v)
                 # The key is the variant, the value is the posterior_phred!
@@ -464,6 +466,7 @@ class VariantsGenotype(object):
         # genotype, or it'll cost a huge memory and it'll absolutely run  
         # out all the machine memory.  
         read_buffer_dict = {}
+
         # Record the genotype likelihood for genotyping 
         genotype_loglikelihoods = []
         # Record the two haplotypes' hash id of each genotype

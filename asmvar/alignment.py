@@ -87,11 +87,11 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     """
     # hash the halotype.sequence and read.seqs. And just do it here, and 
     # just do it one time!!!
-    if read.seq_hash is None:
-         read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
-    if haplotype.seq_hash is None:
+    if not read.seq_hash: # hash the read
+        read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
+    if not haplotype.gap_open: 
+        # hash the haplotype sequence and set gap_open penalize value
         haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
-    if haplotype.gap_open is None:
         haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
                                                       COMDM.homopol_penalty)
 
@@ -108,20 +108,23 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
             # any strategies to select the most likely start from all the index 
             # in this list(haplotype.seq_hash.hash_table[id])!
             idx[id] = idx.get(id, -1) + 1     # Start from index 0
+            if idx[id] >= len(haplotype.seq_hash.hash_table[id]):
+                # Rock back!! The duplicate hashmer is just happen in 'read'!
+                idx[id] -= 1
+
             pos_idx = haplotype.seq_hash.hash_table[id][idx[id]]
             haplotype.map_depth[pos_idx] += 1 # Record the mapping depth
             if haplotype.map_depth[pos_idx] > max_hit:
                 max_hit = haplotype.map_depth[pos_idx]
 
-    # max_hit > 0 means we can find some positions that read could anchor in 
-    # haplotype by hash searching.
-    
     hap_len_for_align = len(read) + ALIMER
     aln1 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
     aln2 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
     best_ali_score = 1000000 # A big enough bad score
     best_ali_pos   = -1
     firstpos       = 0
+    # max_hit > 0 means we can find some positions that read could anchor in 
+    # haplotype by hash searching.
     if max_hit > 0:
         # Go through all the positions of haplotype.sequence 
         for i, d in enumerate(haplotype.map_depth):
@@ -177,6 +180,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                     # (0 is the best score, means exact match)
                     if best_ali_score == 0: 
                         return 0 # log value == 0, means the probability == 1.0
+    #if max_hit > 0 and read.name == 'EAS192_3:6:170:169:57': print '# Aligment: ', read.name, max_hit, read_start_in_hap, ali.contents.pos, ali.contents.score, best_ali_score
 
     # Try original mapping position. If the read is past the end of the 
     # haplotype then don't allow the algorithm to align off the end of 
@@ -188,7 +192,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
         read_start_in_hap = max(0, i - 8)
         s = read_start_in_hap 
         e = s + hap_len_for_align 
-        # The alignment score is the smaller the better and exactly
+        # The alignment score is the smaller the better, so that the exactly
         # mapping will be 0, others will larger than 0.
         ali = align.fastAlignmentRoutine(haplotype.sequence[s:e], 
                                          read.seqs, read.qual, 
