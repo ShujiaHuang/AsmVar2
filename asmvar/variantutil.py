@@ -183,7 +183,7 @@ class VariantCandidateReader(object):
                     else:
                         # Keep the smaller one
                         pre_max_vlen  = max([abs(len(prevar.REF) - len(v)) 
-                                             for v in prevar.AL])
+                                             for v in prevar.ALT])
                         this_max_vlen = max([abs(len(varlist[i].REF) - len(v)) 
                                              for v in varlist[i].ALT])
                         if this_max_vlen < pre_max_vlen:
