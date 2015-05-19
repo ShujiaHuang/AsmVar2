@@ -94,7 +94,7 @@ class VariantCandidateReader(object):
                     # Copy the VCF row, and all the change will just happen 
                     # in this new copy. It would be very useful when we assign
                     # new record to 'varlist'
-                    record = copy.copy(r)
+                    record = copy.deepcopy(r)
 
                     # TO DO: This trim strategy is greedy algorithm, which is 
                     # not the best method. 
@@ -152,44 +152,54 @@ class VariantCandidateReader(object):
         if len(varlist) == 0: 
             return [] 
 
-        vdict = {}
         # Firstly, we should the duplicate positions
+        vdict, max_vlen = {}, {}
         for i, v in enumerate(varlist):
-            k = v.CHROM + ':' + str(v.POS)
-            vdict[k] = vdict.get(k, []) + [i]
+            maxlen = max([abs(len(v.REF) - len(a)) for a in v.ALT])
+            k      = v.CHROM + ':' + str(v.POS)
+            vdict.setdefault(k, []).append(i)
+            max_vlen.setdefault(k, []).append(maxlen)
 
         variants = []
         for k, idx in vdict.items():
 
             if len(idx) == 1:
                 variants.append(varlist[idx[0]])
+
             else:
                 """
                 delete conflict here
                 """
-                prevar = varlist[idx[0]]
-                for i in idx[1:]:
+                prevar, pre_max_vlen = varlist[idx[0]], max_vlen[k][0]
+                for j, i in enumerate(idx[1:]):
+                    j += 1 # Because idx array start from the second one!
 
+                    # Max variant size in varlist[i]
                     if prevar.is_snp and (not varlist[i].is_snp):
                         # Ignore SNP,if we find other variant type  
                         prevar = varlist[i]
+
                     elif prevar.REF == varlist[i].REF:
                         # Merge variants if they have the same REF, SNP
                         # will be merge here, too
-                        prevar.ALT += varlist[i].ALT
+                        for av in varlist[i].ALT:
+                            # Avoid deplicate
+                            if av not in prevar.ALT:
+                                prevar.ALT.append(av)
+
                     elif varlist[i].is_snp:
                         # Ignore SNP,if we find other variant type
                         continue
                     else:
-                        # Keep the smaller one
-                        pre_max_vlen  = max([abs(len(prevar.REF) - len(v)) 
-                                             for v in prevar.ALT])
-                        this_max_vlen = max([abs(len(varlist[i].REF) - len(v)) 
-                                             for v in varlist[i].ALT])
-                        if this_max_vlen < pre_max_vlen:
-                            prevar = varlist[i]
-                        
-                prevar.ALT = list(set(prevar.ALT)) # Unique the sequence
+                        # Keep the smaller one and reset the variant's size
+                        if max_vlen[k][j] < pre_max_vlen:
+                            prevar       = varlist[i]
+                            pre_max_vlen = max_vlen[k][j] # Must re-assign here
+
+                    # Re-assign the max variant size in 'prevar'
+                    if pre_max_vlen < max_vlen[k][j]:
+                        pre_max_vlen = max_vlen[k][j]
+
                 variants.append(prevar)
 
         return sorted(list(set(variants))) # Sorted by reference pos order 
