@@ -27,7 +27,7 @@ class Haplotype(object):
                   `variantutil`. [None]
     """
     def __init__(self, ref_stream_fa, chrom, start_pos, end_pos, 
-                 max_read_length, variants = None):
+                 max_read_length, variants = []):
         """
         Initial the Haplotype
         """
