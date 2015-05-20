@@ -74,10 +74,12 @@ class VariantCandidateReader(object):
         # TO DO: All the variant in the same position could make by a net
         for vcf_reader in self.vcf_readers:
 
+            print "[<><><>]", chrom, start, end
             for r in vcf_reader.fetch(chrom, start, end):
 
                 # Continue, if the ALT == '.'
                 if r.ALT[0] is None: continue
+                print "  >>", r.POS
 
                 # ignore the information that we don't care
                 r.INFO    = None
@@ -108,9 +110,13 @@ class VariantCandidateReader(object):
                         # REF. That will not be trim!
 
                         pos, ref = r.POS, r.REF
+                        rh = 0 # header index of Ref-seq 0-base
+                        ah = 0 # header index of Alt-seq 0-base
+                        rt = len(ref) # tail index of Ref-seq 
+                        at = len(alt) # tail index of Alt-seq
                         # Trim the leading bases, should keep at lest 1 base 
-                        while (len(ref) > 1 and len(alt) > 1 and 
-                               alt.sequence[:2].upper() == ref[:2].upper()):
+                        while ((rt - rh > 1) and (at - ah > 1) and 
+                            (alt.sequence[ah:ah+2].upper() == ref[rh:rh+2].upper())):
                             # At first I think if we just set
                             # `alt.sequence[0].upper() == ref[0].upper()` is
                             # still OK. But after a few seconds, I find that's
@@ -118,25 +124,30 @@ class VariantCandidateReader(object):
                             # of REF and ALT be the same even after we delete
                             # it. That is why I have to compare the first two
                             # bases insteading of just one!
-                            alt.sequence = alt.sequence[1:]
-                            ref  = ref[1:]
+                            rh  += 1
+                            ah  += 1
                             pos += 1
 
                         # Trim the trailing bases, should keep at lest 1 base
-                        while (len(ref) > 1 and len(alt) > 1 and 
-                               alt.sequence[-1].upper() == ref[-1].upper()):
-                            alt.sequence = alt.sequence[:-1]
-                            ref = ref[:-1]
+                        while (rt - rh > 1 and at - ah > 1 and 
+                               alt.sequence[at-1].upper() == ref[rt-1].upper()):
+                            rt -= 1
+                            at -= 1
 
-                        if len(ref) > 0 and len(alt) > 0:
+                        if rt - rh > 0 and at - ah > 0:
                             record.POS = pos
-                            record.REF = ref
-                            record.ALT = [alt]
+                            record.REF = ref[rh:rt]
+                            alt_seq    = alt.sequence[ah:at]
+                            record.ALT = [vcf.model._Substitution(alt_seq)]
                             # After this 'for loop', there may contain some 
                             # duplication and overlap ositions in 'varlist'
                             varlist.append(record)
 
+        print "  === Before De-duplicate ===", len(varlist)
+        #for v in varlist: print "  * ", v
         varlist = self._dedup(varlist)
+        print "  === After De-duplicate ===", len(varlist)
+        #for v in varlist: print "  # ", v
         logger.debug('Found %s variants in region %s in source file' 
                      % (len(varlist), '%s:%s-%s' % (chrom, start, end)))
 
