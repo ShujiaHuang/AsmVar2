@@ -117,8 +117,14 @@ class Haplotype(object):
                              'have to call _getMutatedSequence' % region)
         seq = []
         current_pos = self.start_pos
+
+        #print "\n********* [Looping] ************", self.chrom, self.start_pos, self.end_pos
+        #print '\n'
+        #for v in self.variants:
+        #    print '[v]:', v
+
         for v in self.variants:
-            
+
             if len(v.ALT) != 1:
                 # For each haplotype the ALT should just be one.
                 # It should be divide into > 1 haplotypes before we call this 
@@ -131,7 +137,7 @@ class Haplotype(object):
                 # Deplication position should never happen!
                 raise ValueError('Start pos(%d) > end pos(%d). The variant '
                                  'may not sorted or duplicate or overlap with '
-                                 'the reference region' % (current_pos, v.POS))
+                                 'the preview variant' % (current_pos, v.POS))
 
             # current_pos is always point to the last breakpoint
             if current_pos == v.POS and v.ALT[0] is not None:
@@ -152,8 +158,8 @@ class Haplotype(object):
         # Now we should deal with the last postion
         if current_pos > self.end_pos:
             raise ValueError('Start pos(%d) > end pos(%d). The variant may not '
-                             'sorted or duplicate or overlap with the reference'
-                             'region.' % (current_pos, self.end_pos))
+                             'sorted or duplicate or overlap with the preview '
+                             'variant.' % (current_pos, self.end_pos))
             
         if current_pos < self.end_pos:
             seq.append(self.fa_stream.fetch(self.chrom, current_pos, self.end_pos))
