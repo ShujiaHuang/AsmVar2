@@ -132,8 +132,8 @@ class VariantCandidateReader(object):
                             record.POS = pos
                             record.REF = ref
                             record.ALT = [alt]
-                            # After the 'for loop', there may contain some 
-                            # duplication positions in 'varlist'
+                            # After this 'for loop', there may contain some 
+                            # duplication and overlap ositions in 'varlist'
                             varlist.append(record)
 
         varlist = self._dedup(varlist)
