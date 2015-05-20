@@ -5,7 +5,6 @@ All the options and the usage for AsmVar2 will just be listed here
 import sys
 import optparse
 
-
 def genotype():
     """
     Loading all the parameters for genotyping.
@@ -30,7 +29,7 @@ def genotype():
     optp.add_option('-d', '--variant_dist', dest='min_var_dist', metavar='int', 
                     help = 'The min variant distance windows', default=20)
     optp.add_option('-n', '--num', dest='max_var_num', metavar='NUM',
-                    help = 'Max variants in window', default=7)
+                    help = 'Max variants in window', default=5)
     optp.add_option('-s', '--read_len', dest='max_read_len', metavar='int',
                     help = 'Max length of reads', default=100)
 
