@@ -4,7 +4,12 @@ This module contain all the usefull globle values for AsmVar2
 The best thing is that ``datum`` should just be imported by ``executor``
 
 """
+import os
+import ctypes
 import numpy as np
+
+dir = os.path.dirname(os.path.abspath(__file__))
+encode = ctypes.CDLL(dir + '/encode.so')
 
 class Model(object):
 
@@ -67,9 +72,11 @@ class CommonDatum(object):
 
         self.hashmer  = 7 # The unit size of hash
         self.hashsize = 4 ** self.hashmer
+        self.hitN     = encode.hashEncode('N' * self.hashmer, self.hashmer)
         # The max allow size for aligniing process. 
         # Set this value just want to limit the time
-        self.max_align_size = self.hashsize 
+        #self.max_align_size = self.hashsize 
+        self.max_align_size = 2000 
 
         self.use_read_mapq = True # Decide by myself and used in `alignment`
         self.do_calcu_flank_score = False # Decide by myself used in `alignment`
