@@ -39,7 +39,7 @@ class SeqHashTable(object):
             # the same! But the hash key cannot keep the order as the sequence.
             # Remember: The hash value is a list of the index of the seq except 
             # the tail(self.hashmer)
-            self.hash_table[hash_id] = self.hash_table.get(hash_id, []) + [i]
+            self.hash_table.setdefault(hash_id, []).append(i)
 			# This is a list to keep in order as sequence! And we should go 
             # thought the hash by scan this array to keep the right order!
             self.hash_pointer.append(hash_id)
