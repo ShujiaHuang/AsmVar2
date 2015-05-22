@@ -61,7 +61,7 @@ def set_gap_open_penalty(seq, homopol_penalty):
     hi = -1 # number of homopolymer 
     for c in seq[::-1]: # Count from tail
 
-        if c.upper() == homo_char:
+        if (c.upper() == homo_char) and (c.upper() != 'N'):
             if hi < len(homopol_penalty): # Not be overflow
                 hi += 1 
         else:
