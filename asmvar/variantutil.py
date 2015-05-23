@@ -53,7 +53,8 @@ class VariantCandidateReader(object):
                 # How To: how to close the open vcf files' handle?
                 self.vcf_readers.append(vcf.Reader(filename = filename))
 
-    def variants(self, chrom = None, start = None, end = None, nosnp = True):
+    def variants(self, chrom = None, start = None, end = None, 
+                 nosnp = True, done_load_var = set()):
         """
         *(chrom = None, start = None, end = None, nosnp = True)*
         Generator funtion. Yields variants in order of genomic coordinate.
@@ -69,16 +70,27 @@ class VariantCandidateReader(object):
         first base is returned. Similarly, if *end* is None, the sequence
         until the last base is returned.
 
+        Args:
+            `done_load_var`: A set for recording all the have loaded variants
+                             The reason that why I have to use this parameters,
+                             it's we may load some variants multiple times if 
+                             the variants' region is so big, and the start-end
+                             region can not hold them all! The parameter is 
+                             'set()' type in python, and I use it to ignore the
+                             loaded variants!
         """
-        varlist = []
+        varset = set()
         # TO DO: All the variant in the same position could make by a net
         for vcf_reader in self.vcf_readers:
 
             print "[<><><>]", chrom, start, end
             for r in vcf_reader.fetch(chrom, start, end):
 
-                # Continue, if the ALT == '.'
-                if r.ALT[0] is None: continue
+                h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
+                # Continue, if the ALT == '.' or if the variant has been loaded
+                # This could save time
+                if (r.ALT[0] is None) or (h_id in done_load_var): continue
+                done_load_var.add(h_id)
                 print "  >>", r.POS
 
                 # ignore the information that we don't care
@@ -91,11 +103,11 @@ class VariantCandidateReader(object):
                     continue
                 elif r.is_snp:
 
-                    varlist.append(r)
+                    varset.add(r)
                 else:
                     # Copy the VCF row, and all the change will just happen 
                     # in this new copy. It would be very useful when we assign
-                    # new record to 'varlist'
+                    # new record to 'varset'
                     record = copy.deepcopy(r)
 
                     # TO DO: This trim strategy is greedy algorithm, which is 
@@ -140,12 +152,14 @@ class VariantCandidateReader(object):
                             alt_seq    = alt.sequence[ah:at]
                             record.ALT = [vcf.model._Substitution(alt_seq)]
                             # After this 'for loop', there may contain some 
-                            # duplication and overlap ositions in 'varlist'
-                            varlist.append(record)
+                            # position duplication and overlap positions in 
+                            # 'varset'
+                            varset.add(record)
 
-        print "  === Before De-duplicate ===", len(varlist)
-        #for v in varlist: print "  * ", v
-        varlist = self._dedup(varlist)
+        print "  === Before De-duplicate ===", len(varset)
+        #for v in varset: print "  * ", v
+        # Sorted by reference pos order  
+        varlist = self._dedup(sorted(list(varset))) 
         print "  === After De-duplicate ===", len(varlist)
         #for v in varlist: print "  # ", v
         logger.debug('Found %s variants in region %s in source file' 
@@ -171,11 +185,11 @@ class VariantCandidateReader(object):
             vdict.setdefault(k, []).append(i)
             max_vlen.setdefault(k, []).append(maxlen)
 
-        variants = []
+        variants = set()
         for k, idx in vdict.items():
 
             if len(idx) == 1:
-                variants.append(varlist[idx[0]])
+                variants.add(varlist[idx[0]])
 
             else:
                 """
@@ -211,9 +225,9 @@ class VariantCandidateReader(object):
                     if pre_max_vlen < max_vlen[k][j]:
                         pre_max_vlen = max_vlen[k][j]
 
-                variants.append(prevar)
+                variants.add(prevar)
 
-        return sorted(list(set(variants))) # Sorted by reference pos order 
+        return sorted(list(variants)) # Sorted by reference pos order 
 
 def calPrior(fa_stream, variant):
     """
@@ -233,7 +247,7 @@ def calPrior(fa_stream, variant):
     elif len(variant.REF) == len(variant.ALT[0]):
         # Substitution
         diff_num = len(
-            [(x, y) for (x, y) in zip(variant.REF, variant.ALT[0]) if x != y])
+            [(x, y) for (x, y) in zip(variant.REF, str(variant.ALT[0])) if x != y])
         prior = 5e-5 * (0.1 ** (diff_num - 1)) * (1.0 - 0.1)
 
     elif len(variant.REF) == 1:
