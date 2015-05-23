@@ -76,15 +76,18 @@ class VariantsGenotype(object):
         The genotype process for haplotypes.
         """
         # loop all the vatiant windows
+        nn = 0
         for winvar in self._windowing():
             """
             Genotype the haplotypes in each windows and output the VCF
             """
+            print "***************** Great We IN! **********************", winvar
             # Gernerate a list of haplotypes by all the combination of `winvar`
             haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
                                                             self.opt.max_read_len,
                                                             winvar)
-
+            nn += 1
+            print >> sys.stderr, "\n# ", nn, 'general hap_num:', len(haplotypes)
             # Likelihood of each individual for all genotypes in the window.
             # The 'row' represent to genotypes  
             # The 'colum' represent to individuals
@@ -106,12 +109,14 @@ class VariantsGenotype(object):
             # all the genotype easily! 
             genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
                 self._set_genotype_likelihood(haplotypes))
+            print >> sys.stderr, "# ", nn, 'calculate genotype likelihoods(#):', len(genotype_likelihoods)
 
             # Now move to the next step. Use EM to calculate the haplotype
             # frequence in population scale.
             hap_freq = self._calHaplotypeFreq(genotype_likelihoods,
                                               genotype_hap_hash_id,
                                               haplotypes)
+            print >> sys.stderr, "# ", nn, 'EM calculate haplotype frequence(#):', len(hap_freq)
 
             # convert to np.array.
             genotype_hap_hash_id = np.array(genotype_hap_hash_id)
@@ -136,6 +141,7 @@ class VariantsGenotype(object):
                                                            genotype_likelihoods,
                                                            genotype_hap_hash_id,
                                                            sample_map_nread)
+            print >> sys.stderr, "# ", nn, 'calcualte the variant position posterior(#):', len(var2posterior_phred)
             
             #####################################################
             # All the prepare calculation are done! From now on #
@@ -203,7 +209,9 @@ class VariantsGenotype(object):
                                            GL = normarl_GLs, PL = PL)
 
                 # Output VCF line
-                print v, '[LoL]=>[LoL]', vcf_data_line # [DEL] Just Test!!
+                print '[VCF]', v, '[LoL]=>[LoL]', vcf_data_line # [DEL] Just Test!!
+
+            print >> sys.stderr, "# ", nn, 'output variants by position(#):', len(winvar['variant'])
 
     def _phred(self, prob):
         """
@@ -449,6 +457,19 @@ class VariantsGenotype(object):
 
         return np.array(prob) # It's a 2d array
 
+    def _normalisation(self, probability):
+        """
+        Nomalisation the probablity by using the sum of the values of 
+        each individual.
+        """
+        probability = np.array(probability, dtype = float)
+        # Sum up the log likelihood for each individual of all genotypes
+        sum_prob = probability.sum(axis = 0) # Sum up value by colums
+        sum_prob[sum_prob == 0] = 1.0
+        probability = probability / sum_prob # Normalisation 
+
+        return probability
+
     def _set_genotype_likelihood(self, haplotypes):
         """
         Setting the genotypes of the diploid combinated by 'haplotypes' 
@@ -460,6 +481,7 @@ class VariantsGenotype(object):
         return a numpy array with individual likelihood for each genotype
         """
         genotypes = gnt.generateAllGenotypes(haplotypes)
+        print 'Genotype number: ', len(genotypes)
  
         # Record buffer prevents to calculating again and saving time. 
         # But it must be a temporary value and clean the old data for each
@@ -475,6 +497,8 @@ class VariantsGenotype(object):
         for gt in genotypes: 
             # `gt` is a list: [diploid, hap1_hash_id, hap2_hash_id]
             # Calculte the genotype likelihood for each individual
+            # This is the most costly performance in this program!!
+            print '[GT]', gt
             individual_loglikelihoods, sample_nread = (
                 self._calLikelihoodForIndividual(gt[0], read_buffer_dict))
 
@@ -496,19 +520,6 @@ class VariantsGenotype(object):
 
         return genotype_likelihoods, genotype_hap_hash_id, sample_map_nread
     
-    def _normalisation(self, probability):
-        """
-        Nomalisation the probablity by using sum up the values of 
-        each individual.
-        """
-        probability = np.array(probability, dtype = float)
-        # Sum up the log likelihood for each individual of all genotypes
-        sum_prob = probability.sum(axis = 0) # Sum up value by colums
-        if sum_prob > 0:
-            probability = probability / sum_prob # Normalisation 
-
-        return probability
-
     def _reScaleLikelihood(self, likelihoods):
         """
         Re-scale the genotype log likelihoods by using maximum value
@@ -548,6 +559,7 @@ class VariantsGenotype(object):
             # Each bam file represent to one sample. Get the likelihood
             # by reads realignment
 
+            print "********** %s ***********" % _, br, br[0]
             # `lh` is log10 value and `rc` is the count of mapping reads
             lh, rc = genotype.calLikelihood(read_buffer_dict, br[1])
             # Storing by individual index. br[0] is the index for individual
@@ -571,7 +583,8 @@ class VariantsGenotype(object):
 
         varlist = []
         for chrom in chr_id:
-            varlist += self._windowVarInSingleChrom(chrom)
+            for v in self._windowVarInSingleChrom(chrom):
+                varlist.append(v)
         
         # returning all the variants in the VCF files
         return varlist
@@ -587,19 +600,22 @@ class VariantsGenotype(object):
         if chrom not in self.ref_fasta.references:
             raise ValueError('"%s" not in the reference' % chrom)
 
+        done_load_var   = set() # A set record the loaded variants
         windows_varlist = []
         chrom_length = self.ref_fasta.get_reference_length(chrom)
         for start in range(1, chrom_length, self.opt.win_size): 
 
+            var = []
             end = min(start + self.opt.win_size - 1, chrom_length)
-            var = self.vcfs.variants(chrom, start, end, self.opt.nosnp)
-
+            print "** loading :", chrom, start, end
+            var = self.vcfs.variants(chrom, start, end, 
+                                     self.opt.nosnp, done_load_var)
             # No variants in this window
             if not var: continue
-           
-            # Update the region's boundary by variant list 
+            # Update the region's boundary by using the new variants' data 
             start = min([v.POS for v in var])
-            end   = max([v.POS for v in var])
+            end   = max([v.POS + len(v.REF) - 1 for v in var])
+            print "** Get :", chrom, start, end, len(var)
 
             # Yields a dictionary to store variants in this window. 
             wvar = dict(chrom = chrom, start = start, end = end, variant = var)
@@ -613,7 +629,7 @@ class VariantsGenotype(object):
                 for i in range(0, vn1, self.opt.max_var_num):
                     mi    = i + self.opt.max_var_num # Last index
                     start = min([v.POS for v in var[i:mi]])
-                    end   = max([v.POS for v in var[i:mi]])
+                    end   = max([v.POS + len(v.REF) - 1 for v in var[i:mi]])
                     wvar  = dict(chrom = chrom, start = start, 
                                  end   = end, variant = var[i:mi])
                     windows_varlist.append(wvar)
@@ -622,7 +638,11 @@ class VariantsGenotype(object):
                 vn2 = len(windows_varlist[-1]['variant']) # Variant's number
                 # Try to merge window
                 if start - windows_varlist[-1]['end'] <= self.opt.min_var_dist:
-                    if vn1 + vn2 <= self.opt.max_var_num:
+
+                    if start < windows_varlist[-1]['end']:
+                        # God! They're Overlap, do NOT merge !!
+                        windows_varlist.append(wvar) 
+                    elif vn1 + vn2 <= self.opt.max_var_num:
                         # Merging
                         windows_varlist[-1]['variant'] += var
                         windows_varlist[-1]['end']      = end
@@ -631,17 +651,22 @@ class VariantsGenotype(object):
                 else:
                     windows_varlist.append(wvar)
 
+            del_max_pos = max([v.POS + len(v.REF) - 1 for v in windows_varlist[-1]['variant']])
+            print " **[Done Reg]:", chrom,start,end,len(var),len(windows_varlist), 'max', del_max_pos
+
+        print "*** Assign REF ****"
         # [2015-05-16] Put the reference sequence be the first element of ALT! 
-        # I make REF be the first element of ALT will be convenient for us to
-        # use 0 => REF and other index could be represent other variants. And
-        # this is very important in case of making error.
+        # This will be very convenient for us to use 0 => REF and other index
+        # could be represent other variants. And this is very important in case
+        # of making error.
         for i, wv in enumerate(windows_varlist):
             for v in wv['variant']:
                 # Because the feature of Python, we can just change 'v', but
                 # it will still record the change to windows_varlist
                 v.ALT = [vcf.model._Substitution(v.REF)] + v.ALT
 
-        return windows_varlist # A dict array.
+        print "***** Return ****"
+        return windows_varlist # An array.
 
 
 class VariantRecalibration(object):
