@@ -53,14 +53,15 @@ class Diploid(object):
                 # Big haplotype! We should not load all the reads in this 
                 # process or it'll cost a lot of time. We just prefer reads 
                 # which loaded around the variants' breakpoints. 
+                boundary = 150
                 for v in self.hap1.variants:
-                    regions.add((v.POS - 150, v.POS + 150))
+                    regions.add((max(0, v.POS - boundary), v.POS + boundary))
 
             if len(self.hap2) < COMDM.max_align_size:
                 regions.add((self.hap2.hap_start - 1, self.hap2.hap_end))
             else:
                 for v in self.hap2.variants:
-                    regions.add((v.POS - 150, v.POS + 150))
+                    regions.add((max(0, v.POS - boundary), v.POS + boundary))
 
         # Cause: Some regions in 'regions' may overlap with others
         # but I'll deal with this situation in `alg.alignReadToHaplotype`
