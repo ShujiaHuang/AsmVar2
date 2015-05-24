@@ -164,9 +164,9 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     """
 
     # This is the reference haplotype attempt that no variants in this window
-    refhap = Haplotype(ref_fa_stream, winvar['chrom'], winvar['start'], 
-                       winvar['end'], max_read_len)
-    haplist = [refhap] # Initial with Reference haplotype
+    #refhap = Haplotype(ref_fa_stream, winvar['chrom'], winvar['start'], 
+    #                   winvar['end'], max_read_len)
+    haplist = [] # Initial with empty list
     num_var = len(winvar['variant'])
     vindex  = range(num_var) # An array contain all the index of variants
     var_overlap_index = _get_overlap_var_index(winvar['variant'])
