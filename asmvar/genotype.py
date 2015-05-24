@@ -11,6 +11,9 @@ import vcf
 import alignment as alg # The alignment module
 from haplotype import Haplotype
 
+import datum as DM
+COMDM = DM.CommonDatum()
+
 class Diploid(object):
     """
     A class represent a diploid genotype. It store two haplotype
@@ -30,6 +33,39 @@ class Diploid(object):
         self.hap1 = haplotype1 # Do I have use deepcopy here?
         self.hap2 = haplotype2 # Do I have use deepcopy here?
 
+    def _get_regions(self):
+        """
+        """
+        regions = set()
+        if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
+            # Small haplotype or it may be a big haplotype but it's a refernce
+            # haplotype and have no variants in it and just cut the load reads
+            # region to fix the max aligment size.
+            start = self.hap1.hap_start - 1
+            end   = min(self.hap1.hap_start + COMDM.max_align_size, 
+                        self.hap1.hap_end)
+            regions.add((start, end))
+        else: 
+            # Hete or homo variants genotype.
+            if len(self.hap1) < COMDM.max_align_size:
+                regions.add((self.hap1.hap_start - 1, self.hap1.hap_end))
+            else:
+                # Big haplotype! We should not load all the reads in this 
+                # process or it'll cost a lot of time. We just prefer reads 
+                # which loaded around the variants' breakpoints. 
+                for v in self.hap1.variants:
+                    regions.add((v.POS - 150, v.POS + 150))
+
+            if len(self.hap2) < COMDM.max_align_size:
+                regions.add((self.hap2.hap_start - 1, self.hap2.hap_end))
+            else:
+                for v in self.hap2.variants:
+                    regions.add((v.POS - 150, v.POS + 150))
+
+        # Cause: Some regions in 'regions' may overlap with others
+        # but I'll deal with this situation in `alg.alignReadToHaplotype`
+        return sorted(list(regions))
+        
     def calLikelihood(self, read_buffer_dict, bam_reader):
         """
         Calculate the genotype likelihood for this single bam_reader's sample.
@@ -46,12 +82,15 @@ class Diploid(object):
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
         # Remember these likelihood will be changed follew different bamfile
+        regions = self._get_regions()
         self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
                                                         read_buffer_dict,
-                                                        bam_reader)
+                                                        bam_reader,
+                                                        regions)
         self.hap2.likelihood = alg.alignReadToHaplotype(self.hap2,
                                                         read_buffer_dict,
-                                                        bam_reader)
+                                                        bam_reader,
+                                                        regions)
         lksize1 = len(self.hap1.likelihood)
         lksize2 = len(self.hap2.likelihood)
         if lksize1 != lksize2:
@@ -69,6 +108,7 @@ class Diploid(object):
             log10lk1 = self.hap1.likelihood[i] 
             log10lk2 = self.hap2.likelihood[i] 
 
+            print "[LH]:", i , "/", lksize1, lksize2, log10lk1, log10lk2
             # Almost good to 1000 times. Just take the highest and forget 
             # the small one
             if abs(log10lk1 - log10lk2) >= 3.0:
@@ -132,10 +172,10 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     # Generate all the combination of haplotypes
     # All the combinantion of haplotype may be too much! 
 
-    print "\n"
-    for i, v in enumerate(winvar['variant']):
-        print i, v.CHROM, v.POS, v.POS + len(v.REF) - 1, v
-    print "\n"
+    #print "\n"
+    #for i, v in enumerate(winvar['variant']):
+    #    print i, v.CHROM, v.POS, v.POS + len(v.REF) - 1, v
+    #print "\n"
 
     done = set() # A set to save the done variants' combination
     for n in range(num_var):

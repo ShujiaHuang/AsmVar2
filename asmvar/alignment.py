@@ -26,7 +26,7 @@ class AlignTagPointer(ctypes.Structure):
 align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
 ###############################################################################
 
-def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
+def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
     """ Learn from Platypus.
 
     This is the most basic and important part of AsmVar. This function decides
@@ -38,37 +38,42 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream):
         `reads_collection`: A hash to reads. It's a contianer of reads, use it 
                             to prevent recalculting the hash-sequence for the 
                             same reads. This could save the running time
+        `regions`: A list of region for bamfile to read! These regions should 
+                   be sorted by the start positions. 
     Return:
 
     Requires pysam
     """
+    if len(regions) == 0: # Defualt region is the whole region of haplotype
+        # 0-index system
+        regions = [(haplotype.hap_start - 1, haplotype.hap_end)]
 
     if haplotype.seq_hash is None:
         haplotype.seq_hash = com.SeqHashTable(haplotype.sequence)
 
     read_align_likelihoods = []
-    # 0-index system
-    start, end = haplotype.hap_start - 1, haplotype.hap_end
-    for r in bam_stream.fetch(haplotype.chrom, start, end):
+    pre_end = regions[0][1]
+    for start, end in regions:
 
-        # The uniq-hash Id for identifying each read by the name and seq
-        # aligne to the same haplotype and we do not have recalculate the
-        # alignment score if the read has did it before, this could save a
-        # lot of running time
-        r_identify = hash((r.qname, r.query, haplotype.sequence))
-        if r_identify not in reads_collection:
-            # First element is Read, the second is the alignment likelihood
-            reads_collection[r_identify] = [Read(r), None]
-            # The alignemnt position in pysam is 0-base, 
-            # shift r.pos to be 1-base
-            reads_collection[r_identify][1] = singleRead2Haplotype(
-                haplotype, reads_collection[r_identify][0], r.pos + 1)
+        if end < pre_end: continue
+        for r in bam_stream.fetch(haplotype.chrom, start, end):
+            # The uniq-hash Id for identifying each read by the name and seq
+            # aligne to the same haplotype and we do not have recalculate the
+            # alignment score if the read has did it before, this could save a
+            # lot of running time
+            r_identify = hash((r.qname, r.query, haplotype.sequence))
+            if r_identify not in reads_collection:
+                # First element is Read, the second is the alignment likelihood 
+                reads_collection[r_identify] = [Read(r), None] 
+                # The alignemnt position in pysam is 0-base, 
+                # shift r.pos to be 1-base
+                reads_collection[r_identify][1] = singleRead2Haplotype(
+                    haplotype, reads_collection[r_identify][0], r.pos + 1)
 
-        read_align_likelihoods.append(reads_collection[r_identify][1])
+            read_align_likelihoods.append(reads_collection[r_identify][1]) 
 
     # alignment likelihood for each alignment read
     return read_align_likelihoods # Array of log10 likelihoods
-
 
 def singleRead2Haplotype(haplotype, read, read_align_pos):
     """
@@ -101,6 +106,9 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     # Scan read sequence hash table
     for i, id in enumerate(read.seq_hash.hash_pointer): 
 
+        # Ignore the position if hit N!
+        if id == COMDM.hitN: continue
+
         if id in haplotype.seq_hash.hash_table:
             # Index in list of haplotype.seq_hash[id]
             # [BUG] This could be a bug if we hit tandem repeat regions, we may
@@ -109,7 +117,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
             # in this list(haplotype.seq_hash.hash_table[id])!
             idx[id] = idx.get(id, -1) + 1     # Start from index 0
             if idx[id] >= len(haplotype.seq_hash.hash_table[id]):
-                # Rock back!! The duplicate hashmer is just happen in 'read'!
+                # Rock back! The duplicate hashmer should just allow in 'read'!
                 idx[id] -= 1
 
             pos_idx = haplotype.seq_hash.hash_table[id][idx[id]]
@@ -180,7 +188,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                     # (0 is the best score, means exact match)
                     if best_ali_score == 0: 
                         return 0 # log value == 0, means the probability == 1.0
-    #if max_hit > 0 and read.name == 'EAS192_3:6:170:169:57': print '# Aligment: ', read.name, max_hit, read_start_in_hap, ali.contents.pos, ali.contents.score, best_ali_score
+    #if max_hit > 0 and read.name == 'EAS192_3:6:170:169:57': print '# Aligment: ', read.name, max_hit, read_start_in_hap, ali.contents.pos, ali.contents.score, best_ali_score; exit(1)
 
     # Try original mapping position. If the read is past the end of the 
     # haplotype then don't allow the algorithm to align off the end of 
