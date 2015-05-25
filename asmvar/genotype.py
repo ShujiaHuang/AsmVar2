@@ -33,9 +33,10 @@ class Diploid(object):
         self.hap1 = haplotype1 # Do I have use deepcopy here?
         self.hap2 = haplotype2 # Do I have use deepcopy here?
 
-    def _get_regions(self):
+    def _get_realign_regions(self):
         """
         """
+        boundary = 150
         regions = set()
         if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
             # Small haplotype or it may be a big haplotype but it's a refernce
@@ -53,7 +54,6 @@ class Diploid(object):
                 # Big haplotype! We should not load all the reads in this 
                 # process or it'll cost a lot of time. We just prefer reads 
                 # which loaded around the variants' breakpoints. 
-                boundary = 150
                 for v in self.hap1.variants:
                     regions.add((max(0, v.POS - boundary), v.POS + boundary))
 
@@ -83,7 +83,7 @@ class Diploid(object):
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
         # Remember these likelihood will be changed follew different bamfile
-        regions = self._get_regions()
+        regions = self._get_realign_regions()
         self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
                                                         read_buffer_dict,
                                                         bam_reader,
