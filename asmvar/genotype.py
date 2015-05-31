@@ -33,11 +33,11 @@ class Diploid(object):
         self.hap1 = haplotype1 # Do I have use deepcopy here?
         self.hap2 = haplotype2 # Do I have use deepcopy here?
 
-    def _get_realign_regions(self):
+    def _cal_realign_regions(self):
         """
         """
-        boundary = 150
-        regions = set()
+        boundary = 10
+        regions  = set()
         if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
             # Small haplotype or it may be a big haplotype but it's a refernce
             # haplotype and have no variants in it and just cut the load reads
@@ -48,24 +48,65 @@ class Diploid(object):
             regions.add((start, end))
         else: 
             # Hete or homo variants genotype.
+            for v in self.hap1.variants:
+                regions.add((max(0, v.POS - boundary), v.POS + boundary))
+            for v in self.hap2.variants:
+                regions.add((max(0, v.POS - boundary), v.POS + boundary))
+            """
             if len(self.hap1) < COMDM.max_align_size:
                 regions.add((self.hap1.hap_start - 1, self.hap1.hap_end))
             else:
                 # Big haplotype! We should not load all the reads in this 
-                # process or it'll cost a lot of time. We just prefer reads 
-                # which loaded around the variants' breakpoints. 
+                # process or it'll cost a lot of time in mapping. We just 
+                # prefer reads which loaded around the variants' breakpoints. 
                 for v in self.hap1.variants:
                     regions.add((max(0, v.POS - boundary), v.POS + boundary))
 
-            if len(self.hap2) < COMDM.max_align_size:
+            if len(self.hap2) < 0:
                 regions.add((self.hap2.hap_start - 1, self.hap2.hap_end))
             else:
                 for v in self.hap2.variants:
                     regions.add((max(0, v.POS - boundary), v.POS + boundary))
+            """
 
         # Cause: Some regions in 'regions' may overlap with others
         # but I'll deal with this situation in `alg.alignReadToHaplotype`
-        return sorted(list(regions))
+        return self._merge(sorted(list(regions)))
+
+    def _merge(self, regions, dis_delta = 1):
+        """
+        Merge the region if them happen to overlap with others
+        retrun a list of sorted regions.
+
+        Args:
+            'regions': A list of sorted regions. Format: (start, end)
+        """
+        new_reg = []
+        pre_pos = regions[0][0] # pre start postion
+        flag    = False
+        reg_start, reg_end = 0, 0
+        for start, end in regions:
+            if end < start:
+                raise ValueError('The region start > end (%d, %d). This is '
+                                 'not allow when call merge function in ge-'
+                                 'notype.' % (start, end))
+            if not flag: # The light is on => get region
+                reg_start, reg_end = start, end
+                flag = True
+            else:
+                if pre_pos > start:
+                    raise ValueError("Your regions haven't been sorted.\n")
+                if reg_end + dis_delta >= start:
+                    # Overlap and should be merged
+                    if end > reg_end: reg_end = end
+                else:
+                    new_reg.append((reg_start, reg_end))
+                    reg_start, reg_end = start, end
+            pre_pos = start
+
+        if flag: new_reg.append((reg_start, reg_end))
+
+        return new_reg
         
     def calLikelihood(self, read_buffer_dict, bam_reader):
         """
@@ -83,7 +124,7 @@ class Diploid(object):
         # List of likelihood for each aligning read. each value in the array
         # represent a likelihood value of read align to the haplotype
         # Remember these likelihood will be changed follew different bamfile
-        regions = self._get_realign_regions()
+        regions = self._cal_realign_regions()
         self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
                                                         read_buffer_dict,
                                                         bam_reader,
@@ -92,6 +133,7 @@ class Diploid(object):
                                                         read_buffer_dict,
                                                         bam_reader,
                                                         regions)
+        print "[HAP] Aligning Done"
         lksize1 = len(self.hap1.likelihood)
         lksize2 = len(self.hap2.likelihood)
         if lksize1 != lksize2:
@@ -109,7 +151,7 @@ class Diploid(object):
             log10lk1 = self.hap1.likelihood[i] 
             log10lk2 = self.hap2.likelihood[i] 
 
-            print "[LH]:", i , "/", lksize1, lksize2, log10lk1, log10lk2
+            #print "[LH]:", i , "/", lksize1, lksize2, log10lk1, log10lk2
             # Almost good to 1000 times. Just take the highest and forget 
             # the small one
             if abs(log10lk1 - log10lk2) >= 3.0:
@@ -162,7 +204,6 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
         `max_read_len`: The max length of reads
         `winvar`: It's dict(chrom=chrom, start=start, end=end, variant=var)
     """
-
     # This is the reference haplotype attempt that no variants in this window
     #refhap = Haplotype(ref_fa_stream, winvar['chrom'], winvar['start'], 
     #                   winvar['end'], max_read_len)
@@ -173,16 +214,11 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     # Generate all the combination of haplotypes
     # All the combinantion of haplotype may be too much! 
 
-    #print "\n"
-    #for i, v in enumerate(winvar['variant']):
-    #    print i, v.CHROM, v.POS, v.POS + len(v.REF) - 1, v
-    #print "\n"
-
     done = set() # A set to save the done variants' combination
     for n in range(num_var):
         n += 1
         #for varlist in itertools_combinations(winvar['variant'], n):
-        #    varlist   = copy.deepcopy(varlist)
+        #    varlist = copy.deepcopy(varlist)
         for idxs in itertools_combinations(vindex, n):
 
             new_idxs = _recreate_varaint_idxlist_by_overlop(idxs,
@@ -218,8 +254,8 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
                                     max_read_len, var)
                     haplist.append(hap)
 
-    for h in haplist:
-        print '[Debug]', h.chrom, h.buffer_size, h.start_pos, h.end_pos, h.sequence
+    #for h in haplist:
+    #    print '[Debug]', h.chrom, h.buffer_size, h.start_pos, h.end_pos, h.sequence
 
     return haplist
 
