@@ -17,21 +17,21 @@ class Header(object):
                               'of "VCFHeader", but found %s' % str(type(hInfo)))
         if hInfo: self.header = hInfo
         
-    def Add(self, mark, id, num, type, description):
+    def add(self, mark, id, num, type, description):
         key = '##%s=<ID=%s' % (mark, id)
         val = ('##%s=<ID=%s,Number=%d,Type=%s,Description="%s">' % 
               (mark, id, num, type, description))
         self.header[key] = val
         return self
 
-    def Record(self, headline):
+    def record(self, headline):
 
         if   re.search (r'^##fileformat', headline): tag = '###'
         elif re.search (r'^#CHROM'      , headline): tag = '#CHROM'
         else: tag = headline.split(',')[0]
         self.header[tag] = headline
 
-##
+
 class Info(object): 
 
     def __init__(self, info = None):
@@ -44,11 +44,11 @@ class Info(object):
                               'of "VCFInfo", but found %s' % str(type(info)))
         if info: self.info = info
 
-    def Add(self, key, context):
+    def add(self, key, context):
         self.info[key] = context
         return self
-##
-##
+
+
 class Context(object): 
 
     def __init__(self):
@@ -60,12 +60,30 @@ class Context(object):
         self.pos   = None  
         self.Id    = None
         self.ref   = None  
-        self.alt   = None 
+        self.alt   = []
         self.qual  = None    
-        self.filters = None  
-        self.info    = None   
-        self.formats = None 
-        self.sample  = []
+        self.filter = []
+        self.info   = {} 
+        self.format = None 
+        self.sample = []
+
+    def print_context(self):
+        """
+        """
+        if self.chrom:
+
+            print '\t'.join([self.chrom,
+                             str(self.pos),
+                             '.' if not self.Id else self.Id,
+                             self.ref,
+                             ','.join(self.alt),
+                             str(self.qual),
+                             '.' if not self.filter else ','.join(self.filter),
+                             '.' if not self.info else ';'.join(','.join(v) 
+                                             for k, v in self.info.items()),
+                             ':'.join(self.format),
+                             '\t'.join(self.sample)])
+
 
 
         
