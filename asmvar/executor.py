@@ -87,7 +87,6 @@ class VariantsGenotype(object):
                                                             self.opt.max_read_len,
                                                             winvar)
             nn += 1
-            print "\n#", nn, 'general hap_num:', len(haplotypes)
             # Likelihood of each individual for all genotypes in the window.
             # The 'row' represent to genotypes  
             # The 'colum' represent to individuals
@@ -109,15 +108,13 @@ class VariantsGenotype(object):
             # all the genotype easily! 
             genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
                 self._set_genotype_likelihood(haplotypes))
-            print "#", nn, 'calculate genotype likelihoods(#):', len(genotype_likelihoods)
-            for hh in genotype_likelihoods: print "[GR]:", ''.join(str(hh))
 
             # Now move to the next step. Use EM to calculate the haplotype
             # frequence in population scale.
             hap_freq = self._calHaplotypeFreq(genotype_likelihoods,
                                               genotype_hap_hash_id,
                                               haplotypes)
-            print "# ", nn, 'EM calculate haplotype frequence(#):', hap_freq
+            print "# ", nn, 'EM calculate haplotype frequence(#):', hap_freq, hap_freq.sum()
 
             # convert to np.array.
             genotype_hap_hash_id = np.array(genotype_hap_hash_id)
@@ -213,7 +210,6 @@ class VariantsGenotype(object):
                                            GL = normarl_GLs, PL = PL)
                 # Output VCF line
                 print '[VCF]', v, '[LoL]=>[LoL]', vcf_data_line # [DEL] Just Test!!
-            print >> sys.stderr, "# ", nn, 'output variants by position(#):', len(winvar['variant'])
 
     def _phred(self, prob):
         """
@@ -251,6 +247,7 @@ class VariantsGenotype(object):
 
         # The index of 'var_index' could be use to represent REF or other 
         # variants, see in '_windowVarInSingleChrom'
+        print 'individual_genotype_likelihoods:', individual_genotype_likelihoods
         for i in var_index:
             
             var1_alt_hash = alt_hash[i]
@@ -270,8 +267,8 @@ class VariantsGenotype(object):
                     var2_in_hap2 = var2_alt_hash in hap_alt_var_hash[h_idx[h2]]
 
                     # Just accumulate likelihood for the satisfy genotype.
-                    if ((not var1_in_hap1 and not var1_in_hap2) and
-                        (not var2_in_hap1 and not var2_in_hap2)): continue
+                    if ((not (var1_in_hap1 and var2_in_hap2)) and 
+                        (not (var1_in_hap2 and var2_in_hap1))): continue
 
                     # Only use EM frequencies for large-ish populations.
                     if individual_num > 25:
@@ -281,7 +278,7 @@ class VariantsGenotype(object):
                         hp = (1 + (h1 != h2))
 
                     current_lh = hp * individual_genotype_likelihoods[k]
-                    print 'current_lh:', i, j, current_lh
+                    print 'current_lh:', k, i, j, individual_genotype_likelihoods[k], current_lh
                     marginal_gnt_lh += current_lh
 
                 if variant.ALT[j] != variant.REF or variant.ALT[i] != variant.REF:
@@ -310,6 +307,7 @@ class VariantsGenotype(object):
                 # phase_i and phase_j could be used to represent the phased 
                 # genotype.
                 likelihoods.append([marginal_gnt_lh, phase_i, phase_j])
+                print '** marginal_gnt_lh:', phase_i, phase_j, marginal_gnt_lh, '\n'
 
         likelihoods        = np.array(likelihoods)
         non_ref_posterior /= likelihoods[:,0].sum()
@@ -393,7 +391,6 @@ class VariantsGenotype(object):
             hap_freq_without_var /= sum_freq
         
         return hap_freq_without_var
-
         
     def _calHaplotypeFreq(self, genotype_likelihoods, genotype_hap_hash_id,
                           haplotypes):
@@ -438,9 +435,10 @@ class VariantsGenotype(object):
                 new_freq[h_idx[h1]] += lk
                 new_freq[h_idx[h2]] += lk
 
-        new_freq /= len(hap_freq) # From frequence number to probability
-        maxdiff   = np.abs(new_freq - hap_freq).max()
-
+        #new_freq /= len(hap_freq) # From frequence number to probability
+        sample_num = max(1, len(genotype_likelihoods[0]))
+        new_freq  /= 2 * sample_num
+        maxdiff    = np.abs(new_freq - hap_freq).max()
         return maxdiff, new_freq
 
     def _cal_prob_mat(self, h_idx, hap_freq, genotype_likelihoods,
@@ -507,7 +505,7 @@ class VariantsGenotype(object):
             # The 'colum' represent to each individuals 
             genotype_loglikelihoods.append(individual_loglikelihoods)
             genotype_hap_hash_id.append([gt[1], gt[2]])
-            print 'individual_loglikelihoods:', individual_loglikelihoods
+            #print 'individual_loglikelihoods:', individual_loglikelihoods
 
             # read count each genotype/sample 
             if not sample_map_nread:
@@ -519,6 +517,7 @@ class VariantsGenotype(object):
         # before re-scale. They will all be probability now after rescaling.
         # [NOW THEY ARE NOT log10 value any more!!] 2D-array
         genotype_likelihoods = self._reScaleLikelihood(genotype_loglikelihoods)
+        for g in genotype_likelihoods: print 'genotype_likelihoods:', g
 
         return genotype_likelihoods, genotype_hap_hash_id, sample_map_nread
     
