@@ -9,6 +9,7 @@ to rule them all, in a word, it's "The Ring".
 import pysam
 import vcf
 import sys
+import time
 import numpy as np
 
 import variantutil as vutil
@@ -83,9 +84,19 @@ class VariantsGenotype(object):
         vcf_header_info = vcfutils.Header()
         vcf_header_info.record('##fileformat=VCFv4.1')
 
+        d        = time.localtime()
+        fileDate = '-'.join([str(d.tm_year), str(d.tm_mon), str(d.tm_mday)])
+        vcf_header_info.record('##fileDate=' + fileDate)
+
         chrom   = '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT'
         samples = '\t'.join(s for k, s in self.index2sample.items())
         vcf_header_info.record(chrom + '\t' + samples)
+
+        vcf_header_info.add('FORMAT', 'GT', 1, 'String', 'Genotype')
+        vcf_header_info.add('FORMAT', 'GQ', 1, 'Integer', 'Genotype Quality')
+        vcf_header_info.add('FORMAT', 'PL', 'G', 'Integer',
+            'Normalized, Phred-scaled likelihoods for genotypes as '
+            'defined in the VCF specification')
 
         return vcf_header_info
 
@@ -182,7 +193,7 @@ class VariantsGenotype(object):
                 vcf_data_line.pos   = v.POS
                 vcf_data_line.Id    = v.ID
                 vcf_data_line.ref   = v.REF
-                vcf_data_line.alt   = [str(a) for a in v.ALT[1:]]
+                vcf_data_line.alt   = [str(a) for a in v.ALT[1:]] # REF in ALT
                 vcf_data_line.qual  = v.QUAL
                 vcf_data_line.filter = v.FILTER
                 vcf_data_line.info   = v.INFO
@@ -210,7 +221,7 @@ class VariantsGenotype(object):
                     if ale1 == -1: ale1 = '.' # '-1' represent fail phased
                     if ale2 == -1: ale2 = '.' # '-1' represent fail phased
                     GT = [str(ale1), '/', str(ale2)]
-                    PL = [round(10 * np.log10(max(x / max_lh, 1e-300)), 2) 
+                    PL = [int(round(-10 * np.log10(max(x / max_lh, 1e-300)))) 
                           for x in lh[:,0]]
                     # Normalization the genotype with max likelihood
                     if len(v.ALT) == 2: # There's REF in 'ALT', so we must use 2
@@ -242,8 +253,8 @@ class VariantsGenotype(object):
         """
         Calculate and return the phred score of 'prob'
         """
-        phred = round(-10 * np.log10(max(1e-10, 1.0 - prob)))
-        return int(min(100, phred))
+        phred = int(round(-10 * np.log10(max(1e-300, 1.0 - prob))))
+        return min(100, phred)
 
     def calGenotypeLikelihoodForIndividual(self, 
                                            variant, 
@@ -275,22 +286,17 @@ class VariantsGenotype(object):
         # The index of 'var_index' could be use to represent REF or other 
         # variants, see in '_windowVarInSingleChrom'
         for i in var_index:
-            
-            var1_alt_hash = alt_hash[i]
             for j in var_index[i:]:
-
-                var2_alt_hash = alt_hash[j]
-
 				# Marginal likelihood for this variant pair among all
 				# the possible genotypes.
                 marginal_gnt_lh = 0.0
 				# Loop the genotype by looping 'genotype_hap_hash_id'
                 for k, (h1, h2) in enumerate(genotype_hap_hash_id):
                     
-                    var1_in_hap1 = var1_alt_hash in hap_alt_var_hash[h_idx[h1]]
-                    var1_in_hap2 = var1_alt_hash in hap_alt_var_hash[h_idx[h2]]
-                    var2_in_hap1 = var2_alt_hash in hap_alt_var_hash[h_idx[h1]]
-                    var2_in_hap2 = var2_alt_hash in hap_alt_var_hash[h_idx[h2]]
+                    var1_in_hap1 = alt_hash[i] in hap_alt_var_hash[h_idx[h1]]
+                    var1_in_hap2 = alt_hash[i] in hap_alt_var_hash[h_idx[h2]]
+                    var2_in_hap1 = alt_hash[j] in hap_alt_var_hash[h_idx[h1]]
+                    var2_in_hap2 = alt_hash[j] in hap_alt_var_hash[h_idx[h2]]
 
                     # Just accumulate likelihood for the satisfy genotype.
                     if ((not (var1_in_hap1 and var2_in_hap2)) and 
