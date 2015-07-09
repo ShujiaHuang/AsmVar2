@@ -11,7 +11,10 @@ class Read(object):
         self.qual = read.qual     # The read's quality from bam alignment
         self.mapqual  = read.mapq # Mapping quality to reference genome by BWA
         self.seq_hash = None      # Hash the read's sequence
+        self.size     = None      # Read's size
     
     def __len__(self):
-        return len(self.seqs)
+        if self.size is None:
+            self.size = len(self.seqs)
+        return self.size
 
