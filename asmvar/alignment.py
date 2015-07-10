@@ -6,6 +6,8 @@ import os
 import ctypes
 import numpy as np
 
+import time
+
 import common as com # Same common functions
 import datum  as DM  # The global common datum
 from read import Read
@@ -44,24 +46,32 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
 
     Requires pysam
     """
-    if len(regions) == 0: # Defualt region is the whole region of haplotype
-        # 0-index system
+    if not regions: 
+        # Defualt region is the whole region of haplotype and the index
+        # is 0-index system
         regions = [(haplotype.hap_start - 1, haplotype.hap_end)]
 
-    if haplotype.seq_hash is None:
-        haplotype.seq_hash = com.SeqHashTable(haplotype.sequence)
+    if not haplotype.seq_hash:
+        # Hash the haplotype sequence and set gap_open penalize value
+        # and just do it here!
+        haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
+        haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
+                                                      COMDM.homopol_penalty)
 
     read_align_likelihoods = []
     pre_end = regions[0][1]
-    for start, end in regions:
+    for i, (start, end) in enumerate(regions):
 
-        if end < pre_end: continue
+        if pre_end > start and i > 0:
+            raise ValueError('Region overlap in alignment regions!! (%d, %d)'
+                             % (start, end))
+        pre_end = end
         for r in bam_stream.fetch(haplotype.chrom, start, end):
             # The uniq-hash Id for identifying each read by the name and seq
             # aligne to the same haplotype and we do not have recalculate the
             # alignment score if the read has did it before, this could save a
             # lot of running time
-            r_identify = hash((r.qname, r.query, haplotype.sequence))
+            r_identify = hash((r.qname, r.query, hash(haplotype)))
             if r_identify not in reads_collection:
                 # First element is Read, the second is the alignment likelihood 
                 reads_collection[r_identify] = [Read(r), None] 
@@ -69,7 +79,6 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
                 # shift r.pos to be 1-base
                 reads_collection[r_identify][1] = singleRead2Haplotype(
                     haplotype, reads_collection[r_identify][0], r.pos + 1)
-
             read_align_likelihoods.append(reads_collection[r_identify][1]) 
 
     # alignment likelihood for each alignment read
@@ -90,19 +99,14 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
     Return: The best alignement score's likelihood
     """
-    # hash the halotype.sequence and read.seqs. And just do it here, and 
-    # just do it one time!!!
+    # hash the read.seqs. And just do it here, and just do it one time!!!
     if not read.seq_hash: # hash the read
         read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
-    if not haplotype.gap_open: 
-        # hash the haplotype sequence and set gap_open penalize value
-        haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
-        haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
-                                                      COMDM.homopol_penalty)
 
     # Firstly, we use seq_hash to find the most possible anchor position
-    max_hit = 0
-    idx     = {}
+    max_hit    = 0
+    idx        = {}
+    anchor_idx = set() # Record the mapping position in haplotype.sequence
     # Scan read sequence hash table
     for i, id in enumerate(read.seq_hash.hash_pointer): 
 
@@ -121,6 +125,10 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                 idx[id] -= 1
 
             pos_idx = haplotype.seq_hash.hash_table[id][idx[id]]
+            if pos_idx not in anchor_idx:
+                haplotype.map_depth[pos_idx] = 0 # First time -> reset count
+
+            anchor_idx.add(pos_idx)           # Record the mapping pos_idx
             haplotype.map_depth[pos_idx] += 1 # Record the mapping depth
             if haplotype.map_depth[pos_idx] > max_hit:
                 max_hit = haplotype.map_depth[pos_idx]
@@ -131,14 +139,25 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     best_ali_score = 1000000 # A big enough bad score
     best_ali_pos   = -1
     firstpos       = 0
-    # max_hit > 0 means we can find some positions that read could anchor in 
-    # haplotype by hash searching.
     if max_hit > 0:
+        # max_hit > 0 means we can find some positions that read could
+        # anchor in haplotype by hash searching.
+
         # Go through all the positions of haplotype.sequence 
-        for i, d in enumerate(haplotype.map_depth):
+        #for i, d in enumerate(haplotype.map_depth):
+        pre_idx = None
+        for i in sorted(list(anchor_idx)): 
+
+            if (pre_idx is not None) and (i - pre_idx < 0.5 * len(read)):
+                # This will help discount some unnecessary mapping
+                continue
+            pre_idx = i
+
+            d = haplotype.map_depth[i]
             # Now let's find the best anchor position!
             # 'i' could represent the index of read in haplotype
-            is_inside = i + hap_len_for_align <= len(haplotype)
+            is_inside = (i + hap_len_for_align) <= len(haplotype)
+            if not is_inside: break
             if d == max_hit and is_inside: 
                 # Just start from the most possible position
                 read_start_in_hap = max(0, i - 8) # 0-base system
@@ -188,7 +207,6 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                     # (0 is the best score, means exact match)
                     if best_ali_score == 0: 
                         return 0 # log value == 0, means the probability == 1.0
-    #if max_hit > 0 and read.name == 'EAS192_3:6:170:169:57': print '# Aligment: ', read.name, max_hit, read_start_in_hap, ali.contents.pos, ali.contents.score, best_ali_score; exit(1)
 
     # Try original mapping position. If the read is past the end of the 
     # haplotype then don't allow the algorithm to align off the end of 
@@ -233,7 +251,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     # The probability of read aligne error (convert to be a log10 value)
     prob_read_map_error = min(-1e-6, read.mapqual * COMDM.mot)
     # The probability of read aligne correct (still keep the log10 value)
-    prob_read_map_right = np.log10(1.0 - np.power(10, prob_read_map_error))
+    prob_read_map_right = np.log10(1.0 - 10 ** prob_read_map_error)
 
     likelihood_threshold = -100 # A small enough value
     if COMDM.use_read_mapq:
