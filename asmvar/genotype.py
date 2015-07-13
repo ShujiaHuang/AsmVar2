@@ -7,6 +7,9 @@ import copy
 from itertools import combinations as itertools_combinations
 import numpy as np
 
+import time
+
+
 import vcf
 import alignment as alg # The alignment module
 from haplotype import Haplotype
@@ -36,7 +39,7 @@ class Diploid(object):
     def _cal_realign_regions(self):
         """
         """
-        boundary = 10
+        boundary = 1
         regions  = set()
         if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
             # Small haplotype or it may be a big haplotype but it's a refernce
@@ -133,7 +136,6 @@ class Diploid(object):
                                                         read_buffer_dict,
                                                         bam_reader,
                                                         regions)
-        print "[HAP] Aligning Done"
         lksize1 = len(self.hap1.likelihood)
         lksize2 = len(self.hap2.likelihood)
         if lksize1 != lksize2:
@@ -151,7 +153,6 @@ class Diploid(object):
             log10lk1 = self.hap1.likelihood[i] 
             log10lk2 = self.hap2.likelihood[i] 
 
-            #print "[LH]:", i , "/", lksize1, lksize2, log10lk1, log10lk2
             # Almost good to 1000 times. Just take the highest and forget 
             # the small one
             if abs(log10lk1 - log10lk2) >= 3.0:
@@ -174,7 +175,8 @@ class Diploid(object):
         # `alignReadToHaplotype` process.
         read_map_count = lksize1 # Count of mapping reads of this sample
 
-        return likelihood, read_map_count
+        best_loglikelihood = -1e20
+        return max(best_loglikelihood, likelihood), read_map_count
 
 
 def generateAllGenotypes(haplotypes):
@@ -217,8 +219,6 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     done = set() # A set to save the done variants' combination
     for n in range(num_var):
         n += 1
-        #for varlist in itertools_combinations(winvar['variant'], n):
-        #    varlist = copy.deepcopy(varlist)
         for idxs in itertools_combinations(vindex, n):
 
             new_idxs = _recreate_varaint_idxlist_by_overlop(idxs,
@@ -253,9 +253,6 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
                                     winvar['start'], winvar['end'], 
                                     max_read_len, var)
                     haplist.append(hap)
-
-    #for h in haplist:
-    #    print '[Debug]', h.chrom, h.buffer_size, h.start_pos, h.end_pos, h.sequence
 
     return haplist
 
