@@ -21,37 +21,33 @@ class VariantCandidateReader(object):
     Required PyVCF
     """
 
-    def __init__(self, filenames, options = None):
+    def __init__(self, filename, options = None):
 
         """
         Constructor. Takes the vcf files (bgzip format) and return
         vcf stream for the variant instances.
         """
 
-        self.options     = options
-        self.vcf_readers = []
-
-        for filename in filenames:
-
-            if '.gz' not in filename:
-                logger.error(
-                    '\nSource File %s does not look like a bgzipped VCF '
-                    '(i.e. name does not end in .gz)\nYou must supply a '
-                    'VCF that has been compressed with bgzip, and indexed '
-                    'with tabix' % (filename))
-                logger.error(
-                    'Compress the VCF using bgzip: '
-                    'bgzip %s --> %s.gz' % (filename, filename))
-                logger.error(
-                    'Remember to use the "tabix -p vcf %s.gz" command to '
-                    'index the compressed file' % (filename))
-                logger.error(
-                    'This should create an index file: %s.gz.tbi\n' % (filename))
-                raise ValueError('\nInput VCF source file %s was not compressed '
-                                 'and indexed' % (filename))
-            else:
-                # How To: how to close the open vcf files' handle?
-                self.vcf_readers.append(vcf.Reader(filename = filename))
+        self.options = options
+        if '.gz' not in filename:
+            logger.error(
+                '\nSource File %s does not look like a bgzipped VCF '
+                '(i.e. name does not end in .gz)\nYou must supply a '
+                'VCF that has been compressed with bgzip, and indexed '
+                'with tabix' % (filename))
+            logger.error(
+                'Compress the VCF using bgzip: '
+                'bgzip %s --> %s.gz' % (filename, filename))
+            logger.error(
+                'Remember to use the "tabix -p vcf %s.gz" command to '
+                'index the compressed file' % (filename))
+            logger.error(
+                'This should create an index file: %s.gz.tbi\n' % (filename))
+            raise ValueError('\nInput VCF source file %s was not compressed '
+                             'and indexed' % (filename))
+        else:
+            # How To: how to close the open vcf files' handle?
+            self.vcf_reader = vcf.Reader(filename = filename)
 
     def variants(self, chrom = None, start = None, end = None, 
                  nosnp = True, done_load_var = set()):
@@ -81,87 +77,79 @@ class VariantCandidateReader(object):
         """
         varset = set()
         # TO DO: All the variant in the same position could make by a net
-        for vcf_reader in self.vcf_readers:
+        for r in self.vcf_reader.fetch(chrom, start, end):
 
-            print "[<><><>]", chrom, start, end
-            for r in vcf_reader.fetch(chrom, start, end):
+            h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
+            # Continue, if the ALT == '.' or if the variant has been loaded
+            # This could save time
+            if (r.ALT[0] is None) or (h_id in done_load_var): continue
+            done_load_var.add(h_id)
 
-                h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
-                # Continue, if the ALT == '.' or if the variant has been loaded
-                # This could save time
-                if (r.ALT[0] is None) or (h_id in done_load_var): continue
-                done_load_var.add(h_id)
-                print "  >>", r.POS
+            # ignore the information that we don't care
+            r.INFO    = None
+            r.FORMAT  = None
+            r.samples = None
 
-                # ignore the information that we don't care
-                r.INFO    = None
-                r.FORMAT  = None
-                r.samples = None
+            if nosnp and r.is_snp:
 
-                if nosnp and r.is_snp:
+                continue
+            elif r.is_snp:
 
-                    continue
-                elif r.is_snp:
+                varset.add(r)
+            else:
+                # Copy the VCF row, and all the change will just happen 
+                # in this new copy. It would be very useful when we assign
+                # new record to 'varset'
+                record = copy.deepcopy(r)
 
-                    varset.add(r)
-                else:
-                    # Copy the VCF row, and all the change will just happen 
-                    # in this new copy. It would be very useful when we assign
-                    # new record to 'varset'
-                    record = copy.deepcopy(r)
+                # TO DO: This trim strategy is greedy algorithm, which is 
+                # not the best method. 
+                # e.g: Assume the turth is [A, AATCA] 
+                # If we see [AA, AATCAA] then will be [A, ATCAA] instead of
+                # [A, AATCA] after triming 
+                for alt in r.ALT:
+                    # Non snp variants may leading and/or trailing bases 
+                    # trimming.
+                    # For indel the first base will always be the same with
+                    # REF. That will not be trim!
 
-                    # TO DO: This trim strategy is greedy algorithm, which is 
-                    # not the best method. 
-                    # e.g: Assume the turth is [A, AATCA] 
-                    # If we see [AA, AATCAA] then will be [A, ATCAA] instead of
-                    # [A, AATCA] after triming 
-                    for alt in r.ALT:
-                        # Non snp variants may leading and/or trailing bases 
-                        # trimming.
-                        # For indel the first base will always be the same with
-                        # REF. That will not be trim!
+                    pos, ref = r.POS, r.REF
+                    rh = 0 # header index of Ref-seq 0-base
+                    ah = 0 # header index of Alt-seq 0-base
+                    rt = len(ref) # tail index of Ref-seq 
+                    at = len(alt) # tail index of Alt-seq
+                    # Trim the leading bases, should keep at lest 1 base 
+                    while ((rt - rh > 1) and (at - ah > 1) and 
+                        (alt.sequence[ah:ah+2].upper() == ref[rh:rh+2].upper())):
+                        # At first I think if we just set
+                        # `alt.sequence[0].upper() == ref[0].upper()` is
+                        # still OK. But after a few seconds, I find that's
+                        # wrong! We must always guarrantee the first base
+                        # of REF and ALT be the same even after we delete
+                        # it. That is why I have to compare the first two
+                        # bases insteading of just one!
+                        rh  += 1
+                        ah  += 1
+                        pos += 1
 
-                        pos, ref = r.POS, r.REF
-                        rh = 0 # header index of Ref-seq 0-base
-                        ah = 0 # header index of Alt-seq 0-base
-                        rt = len(ref) # tail index of Ref-seq 
-                        at = len(alt) # tail index of Alt-seq
-                        # Trim the leading bases, should keep at lest 1 base 
-                        while ((rt - rh > 1) and (at - ah > 1) and 
-                            (alt.sequence[ah:ah+2].upper() == ref[rh:rh+2].upper())):
-                            # At first I think if we just set
-                            # `alt.sequence[0].upper() == ref[0].upper()` is
-                            # still OK. But after a few seconds, I find that's
-                            # wrong! We must always guarrantee the first base
-                            # of REF and ALT be the same even after we delete
-                            # it. That is why I have to compare the first two
-                            # bases insteading of just one!
-                            rh  += 1
-                            ah  += 1
-                            pos += 1
+                    # Trim the trailing bases, should keep at lest 1 base
+                    while (rt - rh > 1 and at - ah > 1 and 
+                           alt.sequence[at-1].upper() == ref[rt-1].upper()):
+                        rt -= 1
+                        at -= 1
 
-                        # Trim the trailing bases, should keep at lest 1 base
-                        while (rt - rh > 1 and at - ah > 1 and 
-                               alt.sequence[at-1].upper() == ref[rt-1].upper()):
-                            rt -= 1
-                            at -= 1
+                    if rt - rh > 0 and at - ah > 0:
+                        record.POS = pos
+                        record.REF = ref[rh:rt]
+                        alt_seq    = alt.sequence[ah:at]
+                        record.ALT = [vcf.model._Substitution(alt_seq)]
+                        # After this 'for loop', there may contain some 
+                        # position duplication and overlap positions in 
+                        # 'varset'
+                        varset.add(record)
 
-                        if rt - rh > 0 and at - ah > 0:
-                            record.POS = pos
-                            record.REF = ref[rh:rt]
-                            alt_seq    = alt.sequence[ah:at]
-                            record.ALT = [vcf.model._Substitution(alt_seq)]
-                            # After this 'for loop', there may contain some 
-                            # position duplication and overlap positions in 
-                            # 'varset'
-                            varset.add(record)
-
-        print "  === Before De-duplicate ===", len(varset)
-        #for v in varset: print "  * ", v
         # Sorted by reference pos order  
         varlist = self._dedup(sorted(list(varset))) 
-        print "  === After De-duplicate ===", len(varlist)
-        #for v in varlist: print "  # ", v
         logger.debug('Found %s variants in region %s in source file' 
                      % (len(varlist), '%s:%s-%s' % (chrom, start, end)))
 
@@ -177,7 +165,7 @@ class VariantCandidateReader(object):
         if len(varlist) == 0: 
             return [] 
 
-        # Firstly, we should the duplicate positions
+        # Firstly, we should detect the duplicate positions
         vdict, max_vlen = {}, {}
         for i, v in enumerate(varlist):
             maxlen = max([abs(len(v.REF) - len(a)) for a in v.ALT])
@@ -212,7 +200,7 @@ class VariantCandidateReader(object):
                             if av not in prevar.ALT:
                                 prevar.ALT.append(av)
 
-                    elif varlist[i].is_snp:
+                    elif max_vlen[k][j] == 0 or varlist[i].is_snp:
                         # Ignore SNP,if we find other variant type
                         continue
                     else:
