@@ -3,6 +3,7 @@ This is the main program of AsmVar. It's the most top interface of all the
 AsmVar's tool sets.
 """
 import sys
+import profile
 
 #### My Own Module
 import check
@@ -18,7 +19,7 @@ def checking():
 def genotype():
 
     gnt_opt = cmdopts.genotype()
-    gnt_exe = exe.VariantsGenotype([gnt_opt.vcffile], 
+    gnt_exe = exe.VariantsGenotype(gnt_opt.vcffile, 
                                    [f.split(':') for f in loadList(gnt_opt.bamfile)], 
                                    gnt_opt.ref_fasta_file,
                                    gnt_opt)
@@ -45,6 +46,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     command = sys.argv[1]
-    runner[command]()
+    #runner[command]()
+    profile.run("genotype()") # Debug
     print >> sys.stderr, '*************** ALL DONE ***************\n'
 

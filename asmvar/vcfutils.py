@@ -19,7 +19,7 @@ class Header(object):
         
     def add(self, mark, id, num, type, description):
         key = '##%s=<ID=%s' % (mark, id)
-        val = ('##%s=<ID=%s,Number=%d,Type=%s,Description="%s">' % 
+        val = ('##%s=<ID=%s,Number=%s,Type=%s,Description="%s">' % 
               (mark, id, num, type, description))
         self.header[key] = val
         return self
