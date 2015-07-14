@@ -112,11 +112,9 @@ class VariantsGenotype(object):
             Genotype the haplotypes in each windows and output the VCF
             """
             # Gernerate a list of haplotypes by all the combination of `winvar`
-            print '\n** ING <generateAllHaplotypeByVariants>:', len(winvar['variant']), time.localtime()
             haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
                                                             self.opt.max_read_len,
                                                             winvar)
-            print '** END:', time.localtime(), '\n' 
             # Likelihood of each individual for all genotypes in the window.
             # The 'row' represent to genotypes  
             # The 'colum' represent to individuals
@@ -136,18 +134,17 @@ class VariantsGenotype(object):
             # See!! We don't have to reture the 'genotype' value, we just need
             # 'genotype_hap_hash_id' and 'haplotypes' , then we could get back
             # all the genotype easily! 
-            print '** ING <_set_genotype_likelihood>:', time.localtime()
+            print '\n** ING <_set_genotype_likelihood>:', time.localtime()
             genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
                 self._set_genotype_likelihood(haplotypes))
-            print '** END:', time.localtime(), '\n' 
 
             # Now move to the next step. Use EM to calculate the haplotype
             # frequence in population scale.
-            print '** ING <_calHaplotypeFreq>:', time.localtime()
             hap_freq = self._calHaplotypeFreq(genotype_likelihoods,
                                               genotype_hap_hash_id,
                                               haplotypes)
-            print '** END:', time.localtime(), '\n'
+            for h in hap_freq: print '# Haplotype freq:', h
+            print '** END:', time.localtime(), '\n' 
             # convert to np.array.
             genotype_hap_hash_id = np.array(genotype_hap_hash_id)
             sample_map_nread     = np.array(sample_map_nread)
@@ -166,14 +163,12 @@ class VariantsGenotype(object):
             
             # `var2posterior_phred` is a dict value. and the key is
             # the variant, the value is the posterior!
-            print '** ING <calVarPosteriorProb>:', time.localtime()
             var2posterior_phred = self.calVarPosteriorProb(haplotypes,
                                                            hap_freq, 
                                                            genotype_likelihoods,
                                                            genotype_hap_hash_id,
                                                            sample_map_nread)
             
-            print '** END:', time.localtime(), '\n'
             #####################################################
             # All the prepare calculation are done! From now on #
             # we will calculate all the variant's posterior and #
@@ -189,7 +184,6 @@ class VariantsGenotype(object):
                 hap_alt_var_hash.append([hash((hv.CHROM,hv.POS,str(hv.ALT[0]))) 
                                          for hv in h.variants])
 
-            print '** ING <looping variants>:', time.localtime()
             h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
             for v in winvar['variant']:
                 # Each variant means one position and remember there's REF
@@ -227,8 +221,7 @@ class VariantsGenotype(object):
                     ale1, ale2 = int(ale1), int(ale2)
                     if ale1 == -1: ale1 = '.' # '-1' represent fail phased
                     if ale2 == -1: ale2 = '.' # '-1' represent fail phased
-                    GT = [str(ale1), '/', str(ale2)]
-                    print '[LH] likelihood:', len(lh), max_lh, v.CHROM, v.POS, lh, vcf_data_line.alt
+                    GT = [ale1, '/', ale2]
                     PL = [int(round(-10 * np.log10(x / max_lh))) 
                           for x in lh[:,0]]
                     # Normalization the genotype with max likelihood
@@ -240,17 +233,16 @@ class VariantsGenotype(object):
                             phred_ref_p < self.opt.min_posterior):
                             GT = ['.', '/', '.']
                         elif phred_non_ref_p < self.opt.min_posterior:
-                            GT = ['0', '/', '0'] # Call ref  
+                            GT = [0, '/', 0] # Call ref  
                         else:
                             pass
 
-                    tmp = dict(GT = ''.join(GT),
+                    tmp = dict(GT = ''.join(str(gt) for gt in GT),
                                GQ = str(phred_var_gnt_posterior),
                                PL = ','.join(str(pl) for pl in PL))
                     sample = ':'.join(str(tmp[k]) for k in vcf_data_line.format)
                     vcf_data_line.sample.append(sample)
                 # Output VCF line
-                print '** END:', time.localtime(), '\n'
                 vcf_data_line.print_context()
                 #exit(1) # Debug
 
@@ -318,7 +310,6 @@ class VariantsGenotype(object):
 
                     current_lh = hp * individual_genotype_likelihoods[k]
                     marginal_gnt_lh += current_lh
-                    print 'current_lh:', current_lh, individual_genotype_likelihoods[k], k
 
                 if variant.ALT[j] != variant.REF or variant.ALT[i] != variant.REF:
                     non_ref_posterior += marginal_gnt_lh
@@ -533,7 +524,6 @@ class VariantsGenotype(object):
         # Record the two haplotypes' hash id of each genotype
         genotype_hap_hash_id = []
         sample_map_nread     = []
-        print '** ING <for gt in genotypes: in _set_genotype_likelihood>:', time.localtime()
         for gt in genotypes: 
             # `gt` is a list: [diploid, hap1_hash_id, hap2_hash_id]
             # Calculte the genotype likelihood for each individual
@@ -551,19 +541,17 @@ class VariantsGenotype(object):
                 # Assign one time is enough, they'll all be the same!
                 sample_map_nread = sample_nread
 
-        print '\n** END:', time.localtime() 
         # Rescale genotype likelihood and covert to numpy array for the
         # next step. And causion: the array may contain value > 0 here
         # before re-scale. They will all be probability now after rescaling.
         # [NOW THEY ARE NOT log10 value any more!!] 2D-array
         genotype_likelihoods = self._reScaleLikelihood(genotype_loglikelihoods)
-        #for g in genotype_likelihoods: print 'genotype_likelihoods:', g
 
         return genotype_likelihoods, genotype_hap_hash_id, sample_map_nread
     
     def _reScaleLikelihood(self, likelihoods):
         """
-        Re-scale the genotype log likelihoods by using maximum value
+        Re-scale the genotype log likelihoods by using sum value
         """
         likelihoods = np.array(likelihoods, dtype = float)
 
@@ -572,17 +560,19 @@ class VariantsGenotype(object):
         # 1.0 if the likelihood is None in individual of specify genotype.
         # [WE JUST DO IT HERE]
         lh_isnan = np.isnan(likelihoods)
-        likelihoods[lh_isnan] = 0.0
+        #likelihoods[lh_isnan] = 0.0
+        likelihoods[lh_isnan] = -1e20
 
-        # Get the max log likelihood for each individual of all genotypes
-        max_loglk = likelihoods.max(axis = 0) # Find the max value by colums
+        # Normalization
+        sum_loglk = np.log10(np.power(10, likelihoods).sum(axis = 0))
 
         # If all the likelihoods are small for some specify individuals, we
         # should still guarantee they're still small even after re-scaling.
-        # [need this??] max_loglk[max_loglk < COMDM.min_log] = COMDM.min_log 
+        # [need this??] sum_loglk[sum_loglk < COMDM.min_log] = COMDM.min_log 
+        sum_loglk[sum_loglk <= -1e20] = 0.0
 
         # Re-scale by maxmum likelihood and the values are probability 
-        lk = np.power(10, likelihoods - max_loglk)
+        lk = np.power(10, likelihoods - sum_loglk)
         lk[lk < COMDM.min_float] = COMDM.min_float
         return lk
 
@@ -623,19 +613,13 @@ class VariantsGenotype(object):
 
         varlist = []
         for chrom in chr_id:
-            # Just load the first element
-            for v in self.vcfs.vcf_reader.fetch(chrom): 
-                init_pos = v.POS
-                break
-            init_pos = (init_pos / self.opt.win_size) * self.opt.win_size
-
-            for v in self._windowVarInSingleChrom(chrom, init_pos):
+            for v in self._windowVarInSingleChrom(chrom):
                 varlist.append(v)
         
         # returning all the variants in the VCF files
         return varlist
 
-    def _windowVarInSingleChrom(self, chrom, init_pos = 1):    
+    def _windowVarInSingleChrom(self, chrom):    
         """
         Make windows for a specific chromosome of reference and fill 
         variants in each of them.
