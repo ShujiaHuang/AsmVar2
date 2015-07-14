@@ -216,43 +216,37 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
     # Generate all the combination of haplotypes
     # All the combinantion of haplotype may be too much! 
 
-    done = set() # A set to save the done variants' combination
-    for n in range(num_var):
-        n += 1
-        for idxs in itertools_combinations(vindex, n):
+    for idxs in itertools_combinations(vindex, num_var):
+        # Because we have REF in ALT array, swe do not have to iter from 1 but 
+        # from 'num_var' directly
 
-            new_idxs = _recreate_varaint_idxlist_by_overlop(idxs,
-                                                            winvar['variant'],
-                                                            var_overlap_index)
-            for idx in new_idxs:
+        new_idxs = _recreate_varaint_idxlist_by_overlop(idxs, winvar['variant'],
+                                                        var_overlap_index)
+        for idx in new_idxs:
 
-                hash_id = hash(tuple(idx))
-                if hash_id in done: continue # Ignore all the done part!
-                done.add(hash_id)
+            # Must be deep copy, prevent to changing the raw `winvar`
+            varlist = [copy.deepcopy(winvar['variant'][j]) for j in idx]
+            need_iter = True
+            while need_iter:
+                """
+                Iter all the possible variant combination, and each
+                variant combination could be join to be one haplotype
+                """
+                need_iter = False
+                var = []
+                for i, v in enumerate(varlist):
 
-                # Must be deep copy, prevent to changing the raw `winvar`
-                varlist = [copy.deepcopy(winvar['variant'][j]) for j in idx]
-                need_iter = True
-                while need_iter:
-                    """
-                    Iter all the possible variant combination, and each
-                    variant combination could be join to be one haplotype
-                    """
-                    need_iter = False
-                    var = []
-                    for i, v in enumerate(varlist):
+                    tmp = copy.deepcopy(v) # Still have to deep copy
+                    if len(v.ALT) > 1:
+                        # v.ALT array size will be smaller here
+                        need_iter = True #  
+                        tmp.ALT   = [v.ALT.pop()]
+                    var.append(copy.deepcopy(tmp))
 
-                        tmp = copy.deepcopy(v) # Still have to deep copy
-                        if len(v.ALT) > 1:
-                            # v.ALT array size will be smaller here
-                            need_iter = True #  
-                            tmp.ALT   = [v.ALT.pop()]
-                        var.append(copy.deepcopy(tmp))
-
-                    hap = Haplotype(ref_fa_stream, winvar['chrom'],
-                                    winvar['start'], winvar['end'], 
-                                    max_read_len, var)
-                    haplist.append(hap)
+                hap = Haplotype(ref_fa_stream, winvar['chrom'],
+                                winvar['start'], winvar['end'], 
+                                max_read_len, var)
+                haplist.append(hap)
 
     return haplist
 
