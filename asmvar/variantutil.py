@@ -49,8 +49,7 @@ class VariantCandidateReader(object):
             # How To: how to close the open vcf files' handle?
             self.vcf_reader = vcf.Reader(filename = filename)
 
-    def variants(self, chrom = None, start = None, end = None, 
-                 nosnp = True, done_load_var = set()):
+    def variants(self, chrom, done_load_var, nosnp = True):
         """
         *(chrom = None, start = None, end = None, nosnp = True)*
         Generator funtion. Yields variants in order of genomic coordinate.
@@ -77,7 +76,7 @@ class VariantCandidateReader(object):
         """
         varset = set()
         # TO DO: All the variant in the same position could make by a net
-        for r in self.vcf_reader.fetch(chrom, start, end):
+        for r in self.vcf_reader.fetch(chrom):
 
             h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
             # Continue, if the ALT == '.' or if the variant has been loaded
@@ -101,6 +100,11 @@ class VariantCandidateReader(object):
                 # in this new copy. It would be very useful when we assign
                 # new record to 'varset'
                 record = copy.deepcopy(r)
+
+                # Do not trim ALT.sequence if ALT is more than one
+                if len(r.ALT) > 1:
+                    varset.add(record)
+                    continue
 
                 # TO DO: This trim strategy is greedy algorithm, which is 
                 # not the best method. 
@@ -151,7 +155,7 @@ class VariantCandidateReader(object):
         # Sorted by reference pos order  
         varlist = self._dedup(sorted(list(varset))) 
         logger.debug('Found %s variants in region %s in source file' 
-                     % (len(varlist), '%s:%s-%s' % (chrom, start, end)))
+                     % (len(varlist), chrom))
 
         # It's a list of '_Record' which type is defined by 'PyVCF'
         return varlist
