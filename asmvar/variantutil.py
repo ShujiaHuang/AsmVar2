@@ -102,9 +102,9 @@ class VariantCandidateReader(object):
                 record = copy.deepcopy(r)
 
                 # Do not trim ALT.sequence if ALT is more than one
-                if len(r.ALT) > 1:
-                    varset.add(record)
-                    continue
+                #if len(r.ALT) > 1:
+                #    varset.add(record)
+                #    continue
 
                 # TO DO: This trim strategy is greedy algorithm, which is 
                 # not the best method. 
