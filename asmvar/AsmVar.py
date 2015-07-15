@@ -46,7 +46,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     command = sys.argv[1]
-    #runner[command]()
-    profile.run("genotype()") # Debug
+    runner[command]()
+    #profile.run("genotype()") # Debug
     print >> sys.stderr, '*************** ALL DONE ***************\n'
 
