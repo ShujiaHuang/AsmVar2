@@ -24,12 +24,12 @@ def genotype():
                            'eg: -c chr1 or -c chr1,chr2', default = '')
     optp.add_option('--nosnp', dest='nosnp', metavar='Boolen',
                     help = 'Remove all the SNPs in genotype', default=True)
-    optp.add_option('-w', '--win', dest='win_size', metavar='int', 
-                    help = 'Size of haplotype window', default=1000)
+    #optp.add_option('-w', '--win', dest='win_size', metavar='int', 
+    #                help = 'Size of haplotype window', default=1000)
     optp.add_option('-d', '--variant_dist', dest='min_var_dist', metavar='int', 
                     help = 'The min variant distance windows', default=20)
-    optp.add_option('-n', '--num', dest='max_var_num', metavar='NUM',
-                    help = 'Max variants in window', default=5)
+    #optp.add_option('-n', '--num', dest='max_var_num', metavar='NUM',
+    #                help = 'Max variants in window', default=1)
     optp.add_option('-s', '--read_len', dest='max_read_len', metavar='int',
                     help = 'Max length of reads', default=100)
 
