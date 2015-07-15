@@ -49,9 +49,13 @@ class VariantCandidateReader(object):
             # How To: how to close the open vcf files' handle?
             self.vcf_reader = vcf.Reader(filename = filename)
 
-    def variants(self, chrom, done_load_var, nosnp = True):
+
+class Variant(object):
+    """
+    A class to record VCF variants
+    """
+    def __init__(self, r):
         """
-        *(chrom = None, start = None, end = None, nosnp = True)*
         Generator funtion. Yields variants in order of genomic coordinate.
 
         fetch variants in a region using 0-based indexing.
@@ -74,88 +78,75 @@ class VariantCandidateReader(object):
                              'set()' type in python, and I use it to ignore the
                              loaded variants!
         """
+        # ignore the information that we don't care
+        r.INFO    = None
+        r.FORMAT  = None
+        r.samples = None
+        self.record = r # vcf.model._Record type
+
+    def parse(self):
+        """
+        Parse variant and return variant list
+        """
+        # Copy the VCF row, and all the change will just happen 
+        # in this new copy. It would be very useful when we assign
+        # new record to 'varset'
+        record = copy.deepcopy(self.record)
         varset = set()
-        # TO DO: All the variant in the same position could make by a net
-        for r in self.vcf_reader.fetch(chrom):
 
-            h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
-            # Continue, if the ALT == '.' or if the variant has been loaded
-            # This could save time
-            if (r.ALT[0] is None) or (h_id in done_load_var): continue
-            done_load_var.add(h_id)
+        # Do not trim ALT.sequence if ALT is more than one
+        #if len(r.ALT) > 1:
+        #    varset.add(record)
+        #    continue
 
-            # ignore the information that we don't care
-            r.INFO    = None
-            r.FORMAT  = None
-            r.samples = None
+        # TO DO: This trim strategy is greedy algorithm, which is 
+        # not the best method. 
+        # e.g: Assume the turth is [A, AATCA] 
+        # If we see [AA, AATCAA] then will be [A, ATCAA] instead of
+        # [A, AATCA] after triming 
+        for alt in self.record.ALT:
+            # Non snp variants may leading and/or trailing bases 
+            # trimming.
+            # For indel the first base will always be the same with
+            # REF. That will not be trim!
 
-            if nosnp and r.is_snp:
+            pos, ref = self.record.POS, self.record.REF
+            rh = 0 # header index of Ref-seq 0-base
+            ah = 0 # header index of Alt-seq 0-base
+            rt = len(ref) # tail index of Ref-seq 
+            at = len(alt) # tail index of Alt-seq
+            # Trim the leading bases, should keep at lest 1 base 
+            while ((rt - rh > 1) and (at - ah > 1) and 
+                (alt.sequence[ah:ah+2].upper() == ref[rh:rh+2].upper())):
+                # At first I think if we just set
+                # `alt.sequence[0].upper() == ref[0].upper()` is
+                # still OK. But after a few seconds, I find that's
+                # wrong! We must always guarrantee the first base
+                # of REF and ALT be the same even after we delete
+                # it. That is why I have to compare the first two
+                # bases insteading of just one!
+                rh  += 1
+                ah  += 1
+                pos += 1
 
-                continue
-            elif r.is_snp:
+            # Trim the trailing bases, should keep at lest 1 base
+            while (rt - rh > 1 and at - ah > 1 and 
+                   alt.sequence[at-1].upper() == ref[rt-1].upper()):
+                rt -= 1
+                at -= 1
 
-                varset.add(r)
-            else:
-                # Copy the VCF row, and all the change will just happen 
-                # in this new copy. It would be very useful when we assign
-                # new record to 'varset'
-                record = copy.deepcopy(r)
-
-                # Do not trim ALT.sequence if ALT is more than one
-                #if len(r.ALT) > 1:
-                #    varset.add(record)
-                #    continue
-
-                # TO DO: This trim strategy is greedy algorithm, which is 
-                # not the best method. 
-                # e.g: Assume the turth is [A, AATCA] 
-                # If we see [AA, AATCAA] then will be [A, ATCAA] instead of
-                # [A, AATCA] after triming 
-                for alt in r.ALT:
-                    # Non snp variants may leading and/or trailing bases 
-                    # trimming.
-                    # For indel the first base will always be the same with
-                    # REF. That will not be trim!
-
-                    pos, ref = r.POS, r.REF
-                    rh = 0 # header index of Ref-seq 0-base
-                    ah = 0 # header index of Alt-seq 0-base
-                    rt = len(ref) # tail index of Ref-seq 
-                    at = len(alt) # tail index of Alt-seq
-                    # Trim the leading bases, should keep at lest 1 base 
-                    while ((rt - rh > 1) and (at - ah > 1) and 
-                        (alt.sequence[ah:ah+2].upper() == ref[rh:rh+2].upper())):
-                        # At first I think if we just set
-                        # `alt.sequence[0].upper() == ref[0].upper()` is
-                        # still OK. But after a few seconds, I find that's
-                        # wrong! We must always guarrantee the first base
-                        # of REF and ALT be the same even after we delete
-                        # it. That is why I have to compare the first two
-                        # bases insteading of just one!
-                        rh  += 1
-                        ah  += 1
-                        pos += 1
-
-                    # Trim the trailing bases, should keep at lest 1 base
-                    while (rt - rh > 1 and at - ah > 1 and 
-                           alt.sequence[at-1].upper() == ref[rt-1].upper()):
-                        rt -= 1
-                        at -= 1
-
-                    if rt - rh > 0 and at - ah > 0:
-                        record.POS = pos
-                        record.REF = ref[rh:rt]
-                        alt_seq    = alt.sequence[ah:at]
-                        record.ALT = [vcf.model._Substitution(alt_seq)]
-                        # After this 'for loop', there may contain some 
-                        # position duplication and overlap positions in 
-                        # 'varset'
-                        varset.add(record)
+            if rt - rh > 0 and at - ah > 0:
+                record.POS = pos
+                record.REF = ref[rh:rt]
+                alt_seq    = alt.sequence[ah:at]
+                record.ALT = [vcf.model._Substitution(alt_seq)]
+                # After this 'for loop', there may contain some 
+                # position duplication and overlap positions in 
+                # 'varset'
+                varset.add(record)
 
         # Sorted by reference pos order  
         varlist = self._dedup(sorted(list(varset))) 
-        logger.debug('Found %s variants in region %s in source file' 
-                     % (len(varlist), chrom))
 
         # It's a list of '_Record' which type is defined by 'PyVCF'
         return varlist
@@ -220,6 +211,7 @@ class VariantCandidateReader(object):
                 variants.add(prevar)
 
         return sorted(list(variants)) # Sorted by reference pos order 
+
 
 def calPrior(fa_stream, variant):
     """

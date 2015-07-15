@@ -106,145 +106,165 @@ class VariantsGenotype(object):
         # output vcf header information
         for k, h in sorted(self.vcf_header_info.header.items(), 
                            key = lambda d: d[0]): print h
+
+        chr_id = self.ref_fasta.references # Defualt
+        if self.opt.ref_chrom:
+            chr_id = [c for c in self.opt.ref_chrom.split(',')]
+
         # loop all the vatiant windows
-        for winvar in self._windowing():
-            """
-            Genotype the haplotypes in each windows and output the VCF
-            """
-            # Gernerate a list of haplotypes by all the combination of `winvar`
-            haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
-                                                            self.opt.max_read_len,
-                                                            winvar)
-            # Likelihood of each individual for all genotypes in the window.
-            # The 'row' represent to genotypes  
-            # The 'colum' represent to individuals
-            # And it's a numpy array
-            # CAUSION: These are variants' genotype likelihood, each value is
-            # a likelihood for each individual in one diploid.
-            # `genotype_likelihoods`: Recorde the likelihood of each 
-            #                         genotype [It's not a log value now]
-            # `genotype_hap_hash_id`: Recorde haplotypes' hash id for each
-            #                         genotypes. [hap1_hash_id, hap2_hash_id]. 
-            #                         So 'genotype_hap_hash_id' is the same size
-            #                         and order with genotype_likelihoods's colum
-            # `sample_map_nread`: It's used for recording the count of mapped
-            #                     reads of this sample. And it's 1-d array 
-            #                     [sample], the sample order is the same with
-            #                     the sample of `genotype_likelihoods`
-            # See!! We don't have to reture the 'genotype' value, we just need
-            # 'genotype_hap_hash_id' and 'haplotypes' , then we could get back
-            # all the genotype easily! 
-            print '\n** ING <_set_genotype_likelihood>:', time.localtime()
-            genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
-                self._set_genotype_likelihood(haplotypes))
+        for chrom in chr_id:
 
-            # Now move to the next step. Use EM to calculate the haplotype
-            # frequence in population scale.
-            hap_freq = self._calHaplotypeFreq(genotype_likelihoods,
-                                              genotype_hap_hash_id,
-                                              haplotypes)
-            for h in hap_freq: print '# Haplotype freq:', h
-            print '** END:', time.localtime(), '\n' 
-            # convert to np.array.
-            genotype_hap_hash_id = np.array(genotype_hap_hash_id)
-            sample_map_nread     = np.array(sample_map_nread)
+            if chrom not in self.ref_fasta.references:
+                raise ValueError('"%s" not in the reference' % chrom)
+            done_load_var = set()
+            for r in self.vcfs.vcf_reader.fetch(chrom):
+                """
+                Genotype the haplotypes in each windows and output the VCF
+                """
+                if self.opt.nosnp and r.is_snp:
+                    continue
 
-            # now we should start to pick the best genotype by finding the
-            # max genotype for each individual in this window
-            best_gnt_index       = genotype_likelihoods.argmax(axis = 0)
-            individual_gnt_calls = genotype_hap_hash_id[best_gnt_index]
-            # For the individual which have no reads aligning in this region
-            individual_gnt_calls[sample_map_nread == 0] = [-1, -1] # No genotype
-            
-            # Now calcute the posterior probability for each 'winvar' variant
-            # Type: dict(chrom = chrom, start = start, end = end, variant = var)
-            # 'var_posterior_prob' is all the posterior porbability of variants
-            # in `winvar['variants']`
-            
-            # `var2posterior_phred` is a dict value. and the key is
-            # the variant, the value is the posterior!
-            var2posterior_phred = self.calVarPosteriorProb(haplotypes,
-                                                           hap_freq, 
-                                                           genotype_likelihoods,
-                                                           genotype_hap_hash_id,
-                                                           sample_map_nread)
-            
-            #####################################################
-            # All the prepare calculation are done! From now on #
-            # we will calculate all the variant's posterior and #
-            # output VCF                                        #
-            #####################################################
+                h_id = hash((r.CHROM, r.POS, r.REF, len(r.ALT)))
+                if (r.ALT[0] is None) or (h_id in done_load_var): continue
+                done_load_var.add(h_id)
 
-            # Get getnotype and calculate the genotype posterior for 
-            # each individuals on each positions
-            hap_alt_var_hash = []
-            for h in haplotypes:
-                # The size of ALT in each haplotype's variants should just 
-                # be one!
-                hap_alt_var_hash.append([hash((hv.CHROM,hv.POS,str(hv.ALT[0]))) 
-                                         for hv in h.variants])
+                for var in self._variantReConstruct(vutil.Variant(r).parse()):
+                    self._exe_genotyping(var)
 
-            h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
-            for v in winvar['variant']:
-                # Each variant means one position and remember there's REF
-                # in v.ALT and REF is the first element.
+    def _exe_genotyping(self, winvar):
+        """
+        execute the genotyping process and output the result
+        """
+        # Gernerate a list of haplotypes by all the combination of `winvar`
+        haplotypes = gnt.generateAllHaplotypeByVariants(self.ref_fasta,
+                                                        self.opt.max_read_len,
+                                                        winvar)
+        # Likelihood of each individual for all genotypes in the window.
+        # The 'row' represent to genotypes  
+        # The 'colum' represent to individuals
+        # And it's a numpy array
+        # CAUSION: These are variants' genotype likelihood, each value is
+        # a likelihood for each individual in one diploid.
+        # `genotype_likelihoods`: Recorde the likelihood of each 
+        #                         genotype [It's not a log value now]
+        # `genotype_hap_hash_id`: Recorde haplotypes' hash id for each
+        #                         genotypes. [hap1_hash_id, hap2_hash_id]. 
+        #                         So 'genotype_hap_hash_id' is the same size
+        #                         and order with genotype_likelihoods's colum
+        # `sample_map_nread`: It's used for recording the count of mapped
+        #                     reads of this sample. And it's 1-d array 
+        #                     [sample], the sample order is the same with
+        #                     the sample of `genotype_likelihoods`
+        # See!! We don't have to reture the 'genotype' value, we just need
+        # 'genotype_hap_hash_id' and 'haplotypes' , then we could get back
+        # all the genotype easily! 
+        genotype_likelihoods, genotype_hap_hash_id, sample_map_nread = (
+            self._set_genotype_likelihood(haplotypes))
 
-                vcf_data_line = vcfutils.Context()
-                vcf_data_line.chrom = v.CHROM
-                vcf_data_line.pos   = v.POS
-                vcf_data_line.Id    = v.ID
-                vcf_data_line.ref   = v.REF
-                vcf_data_line.alt   = [str(a) for a in v.ALT[1:]] # REF in ALT
-                vcf_data_line.qual  = v.QUAL
-                vcf_data_line.filter = v.FILTER
-                vcf_data_line.info   = v.INFO
-                vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL'])
+        # Now move to the next step. Use EM to calculate the haplotype
+        # frequence in population scale.
+        hap_freq = self._calHaplotypeFreq(genotype_likelihoods,
+                                          genotype_hap_hash_id,
+                                          haplotypes)
+        # convert to np.array.
+        genotype_hap_hash_id = np.array(genotype_hap_hash_id)
+        sample_map_nread     = np.array(sample_map_nread)
 
-                for i, s in self.index2sample.items(): # loop individuals
-                    # 'lh' are individual likelihoods for all the genotype.
-                    # 'non_ref_p': posterior of non reference call.
-                    # 'ref_p': posterior of reference call.
-                    lh, non_ref_p, ref_p = self.calGenotypeLikelihoodForIndividual(
-                        v, hap_alt_var_hash, h_idx, hap_freq,
-                        genotype_likelihoods[:,i],
-                        genotype_hap_hash_id,
-                        sample_map_nread[i])
+        # now we should start to pick the best genotype by finding the
+        # max genotype for each individual in this window
+        best_gnt_index       = genotype_likelihoods.argmax(axis = 0)
+        individual_gnt_calls = genotype_hap_hash_id[best_gnt_index]
+        # For the individual which have no reads aligning in this region
+        individual_gnt_calls[sample_map_nread == 0] = [-1, -1] # No genotype
+        
+        # Now calcute the posterior probability for each 'winvar' variant
+        # Type: dict(chrom = chrom, start = start, end = end, variant = var)
+        # 'var_posterior_prob' is all the posterior porbability of variants
+        # in `winvar['variants']`
+        
+        # `var2posterior_phred` is a dict value. and the key is
+        # the variant, the value is the posterior!
+        var2posterior_phred = self.calVarPosteriorProb(haplotypes,
+                                                       hap_freq, 
+                                                       genotype_likelihoods,
+                                                       genotype_hap_hash_id,
+                                                       sample_map_nread)
+        
+        #####################################################
+        # All the prepare calculation are done! From now on #
+        # we will calculate all the variant's posterior and #
+        # output VCF                                        #
+        #####################################################
 
-                    # Get the max likelihood and the corresponding allele index
-                    # We'll use alllele index to make the 'GT' in VCF
-                    max_lh, ale1, ale2 = lh[lh[:,0].argmax()]
-                    var_gnt_posterior  = max_lh / lh[:,0].sum()
-                    phred_ref_p        = self._phred(ref_p)
-                    phred_non_ref_p    = self._phred(non_ref_p)
-                    phred_var_gnt_posterior = self._phred(var_gnt_posterior)
-                    
-                    ale1, ale2 = int(ale1), int(ale2)
-                    if ale1 == -1: ale1 = '.' # '-1' represent fail phased
-                    if ale2 == -1: ale2 = '.' # '-1' represent fail phased
-                    GT = [ale1, '/', ale2]
-                    PL = [int(round(-10 * np.log10(x / max_lh))) 
-                          for x in lh[:,0]]
-                    # Normalization the genotype with max likelihood
-                    if len(v.ALT) == 2: # There's REF in 'ALT', so we must use 2
-                        # Bi-allele
+        # Get getnotype and calculate the genotype posterior for 
+        # each individuals on each positions
+        hap_alt_var_hash = []
+        for h in haplotypes:
+            # The size of ALT in each haplotype's variants should just 
+            # be one!
+            hap_alt_var_hash.append([hash((hv.CHROM,hv.POS,str(hv.ALT[0]))) 
+                                     for hv in h.variants])
 
-                        # Don't make any call if the non-ref posterior is too low
-                        if (phred_non_ref_p < self.opt.min_posterior and 
-                            phred_ref_p < self.opt.min_posterior):
-                            GT = ['.', '/', '.']
-                        elif phred_non_ref_p < self.opt.min_posterior:
-                            GT = [0, '/', 0] # Call ref  
-                        else:
-                            pass
+        h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
+        for v in winvar['variant']:
+            # Each variant means one position and remember there's REF
+            # in v.ALT and REF is the first element.
 
-                    tmp = dict(GT = ''.join(str(gt) for gt in GT),
-                               GQ = str(phred_var_gnt_posterior),
-                               PL = ','.join(str(pl) for pl in PL))
-                    sample = ':'.join(str(tmp[k]) for k in vcf_data_line.format)
-                    vcf_data_line.sample.append(sample)
-                # Output VCF line
-                vcf_data_line.print_context()
-                #exit(1) # Debug
+            vcf_data_line = vcfutils.Context()
+            vcf_data_line.chrom = v.CHROM
+            vcf_data_line.pos   = v.POS
+            vcf_data_line.Id    = v.ID
+            vcf_data_line.ref   = v.REF
+            vcf_data_line.alt   = [str(a) for a in v.ALT[1:]] # REF in ALT
+            vcf_data_line.qual  = v.QUAL
+            vcf_data_line.filter = v.FILTER
+            vcf_data_line.info   = v.INFO
+            vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL'])
+
+            for i, s in self.index2sample.items(): # loop individuals
+                # 'lh' are individual likelihoods for all the genotype.
+                # 'non_ref_p': posterior of non reference call.
+                # 'ref_p': posterior of reference call.
+                lh, non_ref_p, ref_p = self.calGenotypeLikelihoodForIndividual(
+                    v, hap_alt_var_hash, h_idx, hap_freq,
+                    genotype_likelihoods[:,i],
+                    genotype_hap_hash_id,
+                    sample_map_nread[i])
+
+                # Get the max likelihood and the corresponding allele index
+                # We'll use alllele index to make the 'GT' in VCF
+                max_lh, ale1, ale2 = lh[lh[:,0].argmax()]
+                var_gnt_posterior  = max_lh / lh[:,0].sum()
+                phred_ref_p        = self._phred(ref_p)
+                phred_non_ref_p    = self._phred(non_ref_p)
+                phred_var_gnt_posterior = self._phred(var_gnt_posterior)
+                
+                ale1, ale2 = int(ale1), int(ale2)
+                if ale1 == -1: ale1 = '.' # '-1' represent fail phased
+                if ale2 == -1: ale2 = '.' # '-1' represent fail phased
+                GT = [ale1, '/', ale2]
+                PL = [int(round(-10 * np.log10(x / max_lh))) 
+                      for x in lh[:,0]]
+                # Normalization the genotype with max likelihood
+                if len(v.ALT) == 2: # There's REF in 'ALT', so we must use 2
+                    # Bi-allele
+
+                    # Don't make any call if the non-ref posterior is too low
+                    if (phred_non_ref_p < self.opt.min_posterior and 
+                        phred_ref_p < self.opt.min_posterior):
+                        GT = ['.', '/', '.']
+                    elif phred_non_ref_p < self.opt.min_posterior:
+                        GT = [0, '/', 0] # Call ref  
+                    else:
+                        pass
+
+                tmp = dict(GT = ''.join(str(gt) for gt in GT),
+                           GQ = str(phred_var_gnt_posterior),
+                           PL = ','.join(str(pl) for pl in PL))
+                sample = ':'.join(str(tmp[k]) for k in vcf_data_line.format)
+                vcf_data_line.sample.append(sample)
+            # Output VCF line
+            vcf_data_line.print_context()
 
     def _phred(self, prob):
         """
@@ -281,7 +301,7 @@ class VariantsGenotype(object):
         individual_num = len(self.index2sample)
 
         # The index of 'var_index' could be use to represent REF or other 
-        # variants, see in '_windowVarInSingleChrom'
+        # variants, see in '_variantReConstruct'
         for i in var_index:
             var1_alt_hash = alt_hash[i]
             for j in var_index[i:]:
@@ -599,60 +619,28 @@ class VariantsGenotype(object):
         # 'likelihood' is a 1D-array of log10 value
         return likelihoods, read_counts
 
-    def _windowing(self):
+    def _variantReConstruct(self, records):    
         """
-        Making windows along the reference genome and fill variants.
-        Cutting the reference into windows by specify size, and fill it
-        with variants
-
-        return a list of variants 
-        """
-        chr_id = self.ref_fasta.references # Defualt
-        if self.opt.ref_chrom:
-            chr_id = [c for c in self.opt.ref_chrom.split(',')]
-
-        varlist = []
-        for chrom in chr_id:
-            for v in self._windowVarInSingleChrom(chrom):
-                varlist.append(v)
-        
-        # returning all the variants in the VCF files
-        return varlist
-
-    def _windowVarInSingleChrom(self, chrom):    
-        """
-        Make windows for a specific chromosome of reference and fill 
-        variants in each of them.
-
         Args:
-            `chrom`: Chromososome id of reference fasta
+            `records: A list of vcf.model._Record()
         """
-        if chrom not in self.ref_fasta.references:
-            raise ValueError('"%s" not in the reference' % chrom)
+        new_varlist = []
 
-        done_load_var   = set() # A set record the loaded variants
-        windows_varlist = []
-
-        for var in self.vcfs.variants(chrom, done_load_var, self.opt.nosnp):
+        for var in records:
             # Loop per variant
             start = var.POS
             end   = var.POS + len(var.REF) - 1
 
+            # [2015-05-16] Put the reference sequence be the first element of ALT! 
+            # This will be very convenient for us to use 0 => REF and other index
+            # could be represent other variants. And this is very important in case
+            # of making error.
+            var.ALT = [vcf.model._Substitution(var.REF)] + var.ALT
             # Yields a dictionary to store variants in this window. 
-            wvar = dict(chrom = chrom, start = start, end = end, variant = [var])
-            windows_varlist.append(wvar)
+            wvar = dict(chrom = var.CHROM, start = start, end = end, variant = [var])
+            new_varlist.append(wvar)
 
-        # [2015-05-16] Put the reference sequence be the first element of ALT! 
-        # This will be very convenient for us to use 0 => REF and other index
-        # could be represent other variants. And this is very important in case
-        # of making error.
-        for i, wv in enumerate(windows_varlist):
-            for v in wv['variant']:
-                # Because the feature of Python, we can just change 'v', and
-                # it will still record the change to windows_varlist
-                v.ALT = [vcf.model._Substitution(v.REF)] + v.ALT
-
-        return windows_varlist # An array.
+        return new_varlist # An array.
 
 
 class VariantRecalibration(object):
