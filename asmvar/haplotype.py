@@ -4,8 +4,8 @@ This module contain classes and functions for general haplotype.
 import copy
 import logging
 
+import common as com # Same common functions
 import variantutil as vutil
-
 logger = logging.getLogger('Log')
 
 class Haplotype(object):
@@ -33,7 +33,7 @@ class Haplotype(object):
         """
         chromlen         = ref_stream_fa.get_reference_length(chrom)
         self.chrom       = chrom
-        self.buffer_size = min(500, 2 * max_read_length) # a reasonable size
+        self.buffer_size = min(150, 1.5 * max_read_length) # a reasonable size
         self.start_pos   = max(1, start_pos)             # Window start 
         self.end_pos     = min(end_pos, chromlen)        # window end
         self.hap_start   = max(1, self.start_pos - self.buffer_size)
@@ -47,8 +47,7 @@ class Haplotype(object):
         # the two haplotypes have the same region when we construct diploid.
         self.hapregion_hash_id = hash((self.chrom, self.start_pos, self.end_pos))
 
-        if variants is None or len(variants) == 0:
-
+        if len(variants) == 0:
             self.sequence = ref_stream_fa.fetch(self.chrom,
                                                 self.hap_start - 1,
                                                 self.hap_end)
@@ -118,11 +117,6 @@ class Haplotype(object):
         seq = []
         current_pos = self.start_pos
 
-        #print "\n********* [Looping] ************", self.chrom, self.start_pos, self.end_pos
-        #print '\n'
-        #for v in self.variants:
-        #    print '[v]:', v
-
         for v in self.variants:
 
             if len(v.ALT) != 1:
@@ -159,7 +153,7 @@ class Haplotype(object):
         if current_pos > self.end_pos:
             raise ValueError('Start pos(%d) > end pos(%d). The variant may not '
                              'sorted or duplicate or overlap with the preview '
-                             'variant.' % (current_pos, self.end_pos))
+                             'variant...' % (current_pos, self.end_pos))
             
         if current_pos < self.end_pos:
             seq.append(self.fa_stream.fetch(self.chrom, current_pos, self.end_pos))
