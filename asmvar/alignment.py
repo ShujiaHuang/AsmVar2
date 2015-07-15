@@ -59,7 +59,8 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
                                                       COMDM.homopol_penalty)
 
     read_align_likelihoods = []
-    pre_end = regions[0][1]
+    pre_end     = regions[0][1]
+    hap_hash_id = hash(haplotype)
     for i, (start, end) in enumerate(regions):
 
         if pre_end > start and i > 0:
@@ -71,7 +72,7 @@ def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
             # aligne to the same haplotype and we do not have recalculate the
             # alignment score if the read has did it before, this could save a
             # lot of running time
-            r_identify = hash((r.qname, r.query, hash(haplotype)))
+            r_identify = hash((r.qname, r.query, hap_hash_id))
             if r_identify not in reads_collection:
                 # First element is Read, the second is the alignment likelihood 
                 reads_collection[r_identify] = [Read(r), None] 
