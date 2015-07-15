@@ -75,7 +75,6 @@ class CommonDatum(object):
         self.hitN     = encode.hashEncode('N' * self.hashmer, self.hashmer)
         # The max allow size for aligniing process. 
         # Set this value just want to limit the time
-        #self.max_align_size = self.hashsize 
         self.max_align_size = 2000 
 
         self.use_read_mapq = True # Decide by myself and used in `alignment`
