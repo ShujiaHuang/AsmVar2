@@ -15,7 +15,6 @@ import alignment as alg # The alignment module
 from haplotype import Haplotype
 
 import datum as DM
-COMDM = DM.CommonDatum()
 
 class Diploid(object):
     """
@@ -39,14 +38,14 @@ class Diploid(object):
     def _cal_realign_regions(self):
         """
         """
-        boundary = 1
+        boundary = 5
         regions  = set()
         if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
             # Small haplotype or it may be a big haplotype but it's a refernce
             # haplotype and have no variants in it and just cut the load reads
             # region to fix the max aligment size.
             start = self.hap1.hap_start - 1
-            end   = min(self.hap1.hap_start + COMDM.max_align_size, 
+            end   = min(self.hap1.hap_start + boundary, 
                         self.hap1.hap_end)
             regions.add((start, end))
         else: 
