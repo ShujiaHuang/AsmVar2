@@ -9,7 +9,7 @@ align.so:
 
 encode.so:
 
-	cd $(DIR); gcc encode.c -fPIC -shared -o encode.so
+	cd $(DIR); g++ encode.cpp -fPIC -shared -o encode.so
 
 clean:
 	
