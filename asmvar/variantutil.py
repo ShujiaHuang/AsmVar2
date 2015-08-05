@@ -82,6 +82,7 @@ class Variant(object):
         r.INFO    = None
         r.FORMAT  = None
         r.samples = None
+        r.cov     = [] # Add a new value to record the coverage
         self.record = r # vcf.model._Record type
 
     def parse(self):
@@ -248,40 +249,35 @@ def calPrior(fa_stream, variant):
 
     return max(1e-10, prior)
 
-#def _indelPrior(fa_stream, variant, indel_size):
+#def _indelPrior(chr_fa_seq, variant, indel_size):
     #"""
     #Calculate indel prior, based on sequence context.
     #"""
     # MODEL
     # context_size = 100
-    # sequence = get_sequence_context(fa_stream, variant)
+    # sequence = get_sequence_context(chr_fa_seq, variant)
 
-def get_sequence_context(fa_stream, variant, size = 10):
+def get_sequence_context(chr_fa_seq, variant, size = 10):
     """
     Return the sequence surrounding this variant's position.
     """
 
     start = max(0, variant.POS - size)
-    return fa_stream.fetch(variant.CHROM, start, variant.POS + size)
+    return chr_fa_seq[start:variant.POS + size]
 
-def homoRunForOneVariant(fa_stream, variant):
-
+def homoRunForOneVariant(chr_fa_seq, variant):
     """
     Calculate and return the length of the largest homopolymer
     touching this variant. Compute homopolymer lengths on the
     left and right, and return the largest.
 
     Args:
-        fa_stream: A file stream of fastafile, open by pysam.FastaFile
+        chr_fa_seq: A fasta sequence of chromosome in `varianti.CHROM`
         variant: It's a vcf.model._Record
     """
 
-    left_ref_seq = fa_stream.fetch(variant.CHROM,
-                                   max(0, variant.POS - 20),
-                                   variant.POS)
-    right_ref_seq = fa_stream.fetch(variant.CHROM,
-                                    variant.POS,
-                                    variant.POS + 20)
+    left_ref_seq  = chr_fa_seq[max(0, variant.POS - 20):variant.POS]
+    right_ref_seq = chr_fa_seq[variant.POS:variant.POS + 20]
     if len(left_ref_seq) == 0 or len(right_ref_seq) == 0:
         return 0
 
