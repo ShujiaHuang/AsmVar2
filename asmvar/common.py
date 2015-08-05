@@ -7,6 +7,11 @@ import ctypes
 dir = os.path.dirname(os.path.abspath(__file__))
 encode = ctypes.CDLL(dir + '/encode.so')
 
+# http://www.28im.com/python/a3534087.html
+encode.hashEncodeArray.restype = ctypes.POINTER(ctypes.c_uint)
+encode.deleteptr.argtype = ctypes.c_void_p
+encode.deleteptr.restype = None
+
 class SeqHashTable(object):
 
     def __init__(self, seq, hashmer = None):
@@ -27,22 +32,26 @@ class SeqHashTable(object):
         """
         Build a hash table for the sequence.
         """
-
         if seq is None or len(seq) == 0 or len(seq) < self.hashmer:
             return
-
-        for i in range(len(seq) - self.hashmer + 1): 
+        
+        hash_id_p = encode.hashEncodeArray(seq, self.hashmer)
+        for i in xrange(len(seq) - self.hashmer + 1): 
 
             # Return an integer to represent the sequence
-            hash_id = encode.hashEncode(seq[i:i + self.hashmer], self.hashmer)
+            # hash_id = encode.hashEncode(seq[i:i + self.hashmer], self.hashmer)
+            hash_id = int(hash_id_p[i])
             # Stored all the index together as an array if the sequence are 
             # the same! But the hash key cannot keep the order as the sequence.
             # Remember: The hash value is a list of the index of the seq except 
             # the tail(self.hashmer)
             self.hash_table.setdefault(hash_id, []).append(i)
-			# This is a list to keep in order as sequence! And we should go 
+            # This is a list to keep in order as sequence! And we should go 
             # thought the hash by scan this array to keep the right order!
             self.hash_pointer.append(hash_id)
+
+        # We need to free our pointer since Python won't know to do it for us.
+        encode.deleteptr(hash_id_p)
 
 def set_gap_open_penalty(seq, homopol_penalty):
     """
@@ -53,7 +62,6 @@ def set_gap_open_penalty(seq, homopol_penalty):
         ``homopol_penalty``: penalty model could be ``CommonDatum.homopol_penalize``
                              and the ASCII value is from big to small.
     """
-
     gap_open_penalty = []
     # Fill in the penalty from the back(NOT from head!) to help 
     # left-justify indels
@@ -62,7 +70,7 @@ def set_gap_open_penalty(seq, homopol_penalty):
     for c in seq[::-1]: # Count from tail
 
         if (c.upper() == homo_char) and (c.upper() != 'N'):
-            if hi < len(homopol_penalty): # Not be overflow
+            if hi < len(homopol_penalty) - 1: # Not be overflow
                 hi += 1 
         else:
             hi = 0
