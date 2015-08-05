@@ -64,7 +64,9 @@ class CommonDatum(object):
         # errors score
         penalty = indel_base_error + extend_err
         # homopolymer indel error model and convert the value into ASCII
-        self.homopol_penalty = ''.join([chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1))) for i, q in enumerate(penalty)])
+        self.homopol_penalty = ''.join([
+            chr(int(33.5 + 10 * np.log((i + 1) * q) / np.log(0.1))) 
+            for i, q in enumerate(penalty)])
 
         # Alignment score matrix
         self.gap_extend = 3
