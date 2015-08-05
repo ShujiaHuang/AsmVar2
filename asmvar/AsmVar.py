@@ -3,6 +3,7 @@ This is the main program of AsmVar. It's the most top interface of all the
 AsmVar's tool sets.
 """
 import sys
+import time
 import profile
 
 #### My Own Module
@@ -42,11 +43,11 @@ if __name__ == '__main__':
 
     if len(sys.argv) == 1 or (sys.argv[1] not in runner):
         print >> sys.stderr, '[Usage] python %s' % sys.argv[0]
-        print >> sys.stderr, '  Option:\n\tgenotype'
+        print >> sys.stderr, '\tOption:\n\t\tgenotype'
         sys.exit(1)
 
     command = sys.argv[1]
-    #runner[command]()
-    profile.run("genotype()") # Debug
-    print >> sys.stderr, '*************** ALL DONE ***************\n'
+    runner[command]()
+    #profile.run("genotype()") # Debug
+    print >> sys.stderr, '** %s ALL DONE %s **\n' % (command, time.asctime())
 

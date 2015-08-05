@@ -3,9 +3,10 @@ This module contain the alignment functions for reads to haplotype,
 genotyping or realignment process
 """
 import os
+import sys
 import ctypes
 import numpy as np
-
+import pysam
 import time
 
 import common as com # Same common functions
@@ -28,62 +29,144 @@ class AlignTagPointer(ctypes.Structure):
 align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
 ###############################################################################
 
-def alignReadToHaplotype(haplotype, reads_collection, bam_stream, regions = []):
+def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
     """ Learn from Platypus.
 
     This is the most basic and important part of AsmVar. This function decides
     where to anchor the read to the specified haplotype, and calls the banded-
     alignment function -- fastAlignmentRoutine function in 'align.c'. 
 
+    Each bam file represent to one sample. Get the likelihood by 
+    reads realignment.
+
     Args:
-        `haplotype`:
-        `reads_collection`: A hash to reads. It's a contianer of reads, use it 
-                            to prevent recalculting the hash-sequence for the 
-                            same reads. This could save the running time
-        `regions`: A list of region for bamfile to read! These regions should 
-                   be sorted by the start positions. 
-    Return:
+        `hap_info`: Element's format is: [start, end, [haplotypes], wvar] 
 
     Requires pysam
     """
-    if not regions: 
-        # Defualt region is the whole region of haplotype and the index
-        # is 0-index system
-        regions = [(haplotype.hap_start - 1, haplotype.hap_end)]
+    end_pos = 0
+    for h in hap_info:
+        if h[1] > end_pos: end_pos = h[1]  
 
-    if not haplotype.seq_hash:
-        # Hash the haplotype sequence and set gap_open penalize value
-        # and just do it here!
-        haplotype.seq_hash = com.SeqHashTable(haplotype.sequence, COMDM.hashmer)
-        haplotype.gap_open = com.set_gap_open_penalty(haplotype.sequence, 
-                                                      COMDM.homopol_penalty)
+    hapidx2realign_region = {}
+    all_indexs = range(len(hap_info))
+    pre_start  = None
+    bam_reader = pysam.AlignmentFile(bamfile)
+    start_loop_idx = 0
+    t_n, o_n = 0, 0
+    print >> sys.stderr, '[INFO] Now loading the bamfile:', chrom, bamfile
+    for al in bam_reader.fetch(chrom):
 
-    read_align_likelihoods = []
-    pre_end     = regions[0][1]
-    hap_hash_id = hash(haplotype)
-    for i, (start, end) in enumerate(regions):
+        alig_start = al.pos + 1 
+        alig_end   = al.aend if al.aend else al.pos + al.qlen
 
-        if pre_end > start and i > 0:
-            raise ValueError('Region overlap in alignment regions!! (%d, %d)'
-                             % (start, end))
-        pre_end = end
-        for r in bam_stream.fetch(haplotype.chrom, start, end):
-            # The uniq-hash Id for identifying each read by the name and seq
-            # aligne to the same haplotype and we do not have recalculate the
-            # alignment score if the read has did it before, this could save a
-            # lot of running time
-            r_identify = hash((r.qname, r.query, hap_hash_id))
-            if r_identify not in reads_collection:
-                # First element is Read, the second is the alignment likelihood 
-                reads_collection[r_identify] = [Read(r), None] 
-                # The alignemnt position in pysam is 0-base, 
-                # shift r.pos to be 1-base
-                reads_collection[r_identify][1] = singleRead2Haplotype(
-                    haplotype, reads_collection[r_identify][0], r.pos + 1)
-            read_align_likelihoods.append(reads_collection[r_identify][1]) 
+        if alig_end > end_pos: break # Don't need to read bam now
 
-    # alignment likelihood for each alignment read
-    return read_align_likelihoods # Array of log10 likelihoods
+        if pre_start and pre_start > alig_start:
+            raise ValueError('[ERROR] The bamfile(%s) should be sorted!' % bamfile)
+        pre_start = alig_start
+
+        start_loop_idx, overlap_hap_idx = _is_overlap(alig_start, 
+                                                      alig_end, 
+                                                      start_loop_idx, 
+                                                      all_indexs, 
+                                                      hap_info)
+        is_ovlp = False
+        read = Read(al) if overlap_hap_idx else None
+
+        for i in overlap_hap_idx: # It will not be empty if overlap
+            
+            if i not in hapidx2realign_region:
+                regions = _realign_region_in_hap(hap_info[i][2])
+                hapidx2realign_region[i] = regions
+            # Check whether the region is in the realign region of hap
+            loop_idx = 0
+            all_idx  = range(len(hapidx2realign_region[i]))
+            loop_idx, ovlp_var_idx = _is_overlap(alig_start, 
+                                                 alig_end, 
+                                                 loop_idx, 
+                                                 all_idx,
+                                                 hapidx2realign_region[i])
+            if ovlp_var_idx:
+                # It's Overlap! Now loop all the haplotypes of this 
+                # variant block 
+                is_ovlp = True
+                hap_loglike = []
+                for h in hap_info[i][2]: # Loop haplotype 
+                    loglikelihood, alis, alie = singleRead2Haplotype(h, 
+                                                                     read, 
+                                                                     al.pos + 1)
+                    # The alignment likelihood of the read map to this hap
+                    h.loglikelihood[sam_idx].append(loglikelihood)
+                    hap_loglike.append([loglikelihood, alis, alie])
+
+                hap_loglike = np.array(hap_loglike)
+                mlhi = hap_loglike[:,0].argmax() # Max likelihood hap idx
+                _, alis, alie = hap_loglike[mlhi]
+                for j in ovlp_var_idx:
+                    # Just assign the read coverage to the haplotype which 
+                    # got the max loglikehood
+                    if alis < hap_info[i][2][mlhi].variants[j].POS < alie:
+                        hap_info[i][2][mlhi].variants[j].cov[sam_idx] += 1
+
+        t_n += 1
+        if is_ovlp: o_n += 1
+        if t_n % 1000000 == 0:
+            print >> sys.stderr, ('[INFO] Loading %d lines and hit POS %d, '
+                                  'and %d are happen to overlap. Time: %s' % (
+                                   t_n, al.pos + 1, o_n, time.asctime()))
+
+    # Finish looping the whole bamfile of chrom, and we've record all the 
+    # likelihood score in haplotype.likelihood of the sample 
+    print >> sys.stderr, ('[INFO] Finish Loading %d lines and hit POS %d, '
+                          'and %d are happen to overlap. Time: %s\n' % (
+                           t_n, al.pos + 1, o_n, time.asctime()))
+    bam_reader.close()
+
+def _realign_region_in_hap(haplotypes):
+    """
+    Find all the variant region in haplotypes
+
+    Args:
+        `haplotypes`: It's a list of `Haplotype`
+    """
+    boundary = 1
+    regions  = set()
+    for h in haplotypes: # Loop all the haplotypes in this block
+
+        if h.variants:
+
+            for v in h.variants:
+                regions.add((max(0, v.POS - boundary), v.POS + boundary))
+        else:
+            # Small haplotype or it may be a big haplotype but it's a 
+            # refernce haplotype and have no variants in it and just 
+            # cut the load reads region to fix the max aligment size.
+            start = h.hap_start - 1
+            end   = min(h.hap_start + boundary, h.hap_end)
+    # Cause: Some regions in 'regions' may overlap with others
+    # But we don't need to care for this situation!
+    return sorted(list(regions))
+
+def _is_overlap(reg_start, reg_end, start_loop_idx, all_idx, regions):
+    """
+    Chech whether [reg_start, reg_end] overlap with `regions`
+    """
+    overlap_idx = []
+    first_time_ovlp = True
+    next_start_idx  = start_loop_idx
+    for i in all_idx[start_loop_idx:]:
+        
+        if reg_start > regions[i][1]: continue
+        if reg_end   < regions[i][0]: break
+        
+        # Overlap now
+        if first_time_ovlp:
+            next_start_idx  = i
+            first_time_ovlp = False
+        overlap_idx.append(i)
+
+    return next_start_idx, overlap_idx
 
 def singleRead2Haplotype(haplotype, read, read_align_pos):
     """
@@ -98,15 +181,15 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                      collecting from ``AlignedRead`` of pysam by reading bam
                      files and a hash table for the read sequence
 
-    Return: The best alignement score's likelihood
+    Return: The best alignement score's likelihood and alignment region
     """
     # hash the read.seqs. And just do it here, and just do it one time!!!
     if not read.seq_hash: # hash the read
         read.seq_hash = com.SeqHashTable(read.seqs, COMDM.hashmer)
 
     # Firstly, we use seq_hash to find the most possible anchor position
-    max_hit    = 0
-    idx        = {}
+    max_hit = 0
+    idx     = {}
     anchor_idx = set() # Record the mapping position in haplotype.sequence
     # Scan read sequence hash table
     for i, id in enumerate(read.seq_hash.hash_pointer): 
@@ -138,14 +221,13 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     aln1 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
     aln2 = ''.join(['\0' for i in range(2 * len(read) + ALIMER)])
     best_ali_score = 1000000 # A big enough bad score
-    best_ali_pos   = -1
-    firstpos       = 0
+    best_ali_pos = -1
+    firstpos     = 0
     if max_hit > 0:
         # max_hit > 0 means we can find some positions that read could
         # anchor in haplotype by hash searching.
 
         # Go through all the positions of haplotype.sequence 
-        #for i, d in enumerate(haplotype.map_depth):
         pre_idx = None
         for i in sorted(list(anchor_idx)): 
 
@@ -159,9 +241,10 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
             # 'i' could represent the index of read in haplotype
             is_inside = (i + hap_len_for_align) <= len(haplotype)
             if not is_inside: break
+
             if d == max_hit and is_inside: 
-                # Just start from the most possible position
-                read_start_in_hap = max(0, i - 8) # 0-base system
+                # Just start from the most possible position, it's 0-base
+                read_start_in_hap = max(0, i - int(round(ALIMER / 2.0)))
                 s = read_start_in_hap
                 e = s + hap_len_for_align
                 # The alignment score is the smaller the better and exactly
@@ -202,12 +285,14 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
                 if ali.contents.score < best_ali_score:
                     best_ali_score = ali.contents.score
-                    best_ali_pos   = i 
+                    best_ali_pos   = i + 1 # position should be 1-base 
 
                     # Short-circuit this loop if we find an exact match
                     # (0 is the best score, means exact match)
                     if best_ali_score == 0: 
-                        return 0 # log value == 0, means the probability == 1.0
+                        return (0, # log value == 0, means the probability==1.0
+                                haplotype.hap_start + best_ali_pos - 1,
+                                haplotype.hap_start + best_ali_pos + len(read) - 1)
 
     # Try original mapping position. If the read is past the end of the 
     # haplotype then don't allow the algorithm to align off the end of 
@@ -216,7 +301,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                             read_align_pos - haplotype.hap_start)
 
     if read_start_in_hap != best_ali_pos:
-        read_start_in_hap = max(0, i - 8)
+        read_start_in_hap = max(0, i - int(round(ALIMER / 2.0)))
         s = read_start_in_hap 
         e = s + hap_len_for_align 
         # The alignment score is the smaller the better, so that the exactly
@@ -247,21 +332,21 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
 
         if ali.contents.score < best_ali_score:
             best_ali_score = ali.contents.score
+            best_ali_pos   = s + 1
 
     # Finaly, we should convert the score to be a log10 value
     # The probability of read aligne error (convert to be a log10 value)
-    prob_read_map_error = min(-1e-6, read.mapqual * COMDM.mot)
+    log_prob_read_map_error = min(-1e-6, read.mapqual * COMDM.mot)
     # The probability of read aligne correct (still keep the log10 value)
-    prob_read_map_right = np.log10(1.0 - 10 ** prob_read_map_error)
+    prob_read_map_right = np.log10(1.0 - 10 ** log_prob_read_map_error)
 
-    likelihood_threshold = -100 # A small enough value
-    if COMDM.use_read_mapq:
-        likelihood_threshold = prob_read_map_error
-
+    log_likelihood_threshold = -100 # A small enough value
     # The max value could just be 0 for all situations if we don't adjust
     # the value with 'do_calcu_flank_score'
-    loglk = COMDM.mot * best_ali_score + prob_read_map_right
-    return max(loglk, likelihood_threshold) # It's a log10 value
+    loglk = round(COMDM.mot * best_ali_score + prob_read_map_right, 6)
+    return (max(loglk, log_likelihood_threshold),   # It's a log10 value
+            haplotype.hap_start + best_ali_pos - 1, # Best align start
+            haplotype.hap_start + best_ali_pos + len(read) - 1) # align end
 
 
 
