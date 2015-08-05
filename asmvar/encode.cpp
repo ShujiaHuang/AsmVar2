@@ -1,33 +1,62 @@
 /*
  * Encodes nucleotides (A,C,G,T or a,c,g,t) into an integer
  * */
-#include <stdio.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
 #include <assert.h>
-#include <string.h>
+
+using namespace std;
 
 // define the DEBUG symbol
-// #define DEBUG 1
-
-inline unsigned int hashEncode(char *seq, unsigned int hashmer) {
+//#define DEBUG 1
+// BKDR Hash Function (https://www.byvoid.com/blog/string-hash-compare)
+unsigned int hash_encode(string seq, unsigned int hashmer) {
 
     // Encodes nucleotides (A,C,G,T or a,c,g,t) into an integer
-    assert(hashmer <= strlen(seq));
+    assert(hashmer <= seq.length());
+    transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
 
+    unsigned int seed = 131; // 31 131 1313 13131 131313 etc..
     unsigned int h = 0;
     int c, i = 0;
     for (; i < hashmer; ++i) {
-        // Just a simple hash function.
-        c = seq[i] & 7;  // a,A->1  c,C->3  g,G->7  t,T->4
-        if (c == 7) c = 2;
-
-        h = (h << 2) + (unsigned int)(c & 3);
+        h = h * seed + seq[i];
     }
 
 #ifdef DEBUG
-    printf("seq = %s; hashmer = %d; h = %d\n", seq, hashmer, h);
+    cout << "seq = " << seq << "; hashmer = " << hashmer << "; h = " << h & 0x7FFFFFFF;
 #endif
 
-    return h;
+    return (h & 0x7FFFFFFF);
 }
 
+unsigned int *hash_array(string seq, unsigned int hashmer) {
 
+    size_t size = seq.length() - hashmer + 1;
+    unsigned int *array = new unsigned int[size];
+    for (size_t i(0); i < size; ++i) {
+        array[i] = hash_encode(seq.substr(i, hashmer), hashmer);
+    }
+    return array;
+}
+
+void delete_ptr(void *p) {
+
+    delete [] p;
+	return;
+}
+
+extern "C" {
+
+    unsigned int hashEncode(char *seq, unsigned int hashmer) {
+        return hash_encode(seq, hashmer);
+    }
+    unsigned int *hashEncodeArray(char *seq, unsigned int hashmer) {
+        return hash_array(seq, hashmer);
+    }
+    void deleteptr(void *p) {
+        delete_ptr(p);
+    }
+}
