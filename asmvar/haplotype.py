@@ -5,7 +5,10 @@ import copy
 import logging
 
 import common as com # Same common functions
+import datum  as DM  # The global common datum
 import variantutil as vutil
+
+COMDM  = DM.CommonDatum() # DM.CommonDatum().hashmer is defualt to be 7
 logger = logging.getLogger('Log')
 
 class Haplotype(object):
@@ -19,26 +22,25 @@ class Haplotype(object):
         chrom: reference chromosome id
         start_pos: reference start position (1-based coordinate systems)
         end_pos: reference end position
-        ref_stream_fa: A file stream of reference fasta file.
+        chr_fa_seq: The fasta sequence of `chrom`.
         max_read_length: The max size of reads in fq file, use for extending 
                          the haplotype region. [100]
         variants: A list of variants. The data type defined in `PyVCF` module
                   and been called by `VariantCandidateReader` in the module 
                   `variantutil`. [None]
     """
-    def __init__(self, ref_stream_fa, chrom, start_pos, end_pos, 
+    def __init__(self, chr_fa_seq, chrom, start_pos, end_pos, 
                  max_read_length, variants = []):
         """
         Initial the Haplotype
         """
-        chromlen         = ref_stream_fa.get_reference_length(chrom)
+        chromlen         = len(chr_fa_seq)
         self.chrom       = chrom
         self.buffer_size = min(150, 1.5 * max_read_length) # a reasonable size
         self.start_pos   = max(1, start_pos)             # Window start 
         self.end_pos     = min(end_pos, chromlen)        # window end
         self.hap_start   = max(1, self.start_pos - self.buffer_size)
         self.hap_end     = min(self.end_pos + self.buffer_size, chromlen)
-        self.fa_stream   = ref_stream_fa
         self.variants    = copy.deepcopy(variants) # Must use deepcopy!!
         self.sequence    = None # The haplotype sequence
         self.hash_id     = None # A hash id use for identified this haplotype
@@ -48,9 +50,7 @@ class Haplotype(object):
         self.hapregion_hash_id = hash((self.chrom, self.start_pos, self.end_pos))
 
         if len(variants) == 0:
-            self.sequence = ref_stream_fa.fetch(self.chrom,
-                                                self.hap_start - 1,
-                                                self.hap_end)
+            self.sequence = chr_fa_seq[self.hap_start - 1:self.hap_end]
         else:
             # Left side of variants, donot include self.start_pos base
             start1, end1 = self.hap_start, max(self.start_pos - 1, 1)
@@ -58,22 +58,25 @@ class Haplotype(object):
             start2, end2 = self.end_pos, self.hap_end
             
             # CAUTION: 'start1' and 'start2' treat as 0-base
-            leftseq       = ref_stream_fa.fetch(self.chrom, start1, end1)
-            rightseq      = ref_stream_fa.fetch(self.chrom, start2, end2)
-            self.sequence = leftseq + self._getMutatedSequence() + rightseq
+            leftseq  = chr_fa_seq[start1:end1]
+            rightseq = chr_fa_seq[start2:end2]
+            self.sequence = (leftseq + 
+                             self._getMutatedSequence(chr_fa_seq) + 
+                             rightseq)
 
         # Record the mapping depth for each position of haplotype
-        self.map_depth = [0 for i in range(len(self.sequence))]
+        self.map_depth = [0] * len(self.sequence)
         # Record the score penalize of gap open. Use it for read realign process
         # The size of ``gap_open`` should be the same as self.sequence, but
         # now I'll assign it to be None, and I'll assign a string for it when
         # we need it and the ASCII of each charter of the is a penalize value
 		# for gap open
-        self.gap_open   = None # will be string type
-        self.seq_hash   = None # Encode a hash table for self.sequence used 
-                               # for mapping when we needed
-        self.likelihood = []   # likelihood calculated for each read during
-                               # re-aligning process
+        self.gap_open = com.set_gap_open_penalty(self.sequence, 
+                                                 COMDM.homopol_penalty)
+        # Encode a hash table for self.sequence used for mapping when we needed
+        self.seq_hash = com.SeqHashTable(self.sequence, COMDM.hashmer)
+        # loglikelihood calculated for each read during re-aligning process
+        self.loglikelihood = []
 
     def __len__(self):
         return len(self.sequence) # The sequence's size
@@ -91,13 +94,13 @@ class Haplotype(object):
 
         return self.hash_id
 
-    def homoRunLength(self):
+    def homoRunLength(self, chr_fa_seq):
         """
         I don't think we need this function here!
         """
-        return [vutil.homoRunForOneVariant(self.fa_stream, v) for v in self.variants]
+        return [vutil.homoRunForOneVariant(chr_fa_seq, v) for v in self.variants]
 
-    def _getMutatedSequence(self):
+    def _getMutatedSequence(self, fa_sequence):
         """
         Return the sequence mutated with all the variants being considered
         in this haplotype
@@ -107,7 +110,6 @@ class Haplotype(object):
         such that the index is that of the last reference base before the insertion.
         Deletions are reported such that the index is that of the first deleted base.
         """
-
         if len(self.variants) == 0:
 
             region = '%s:%d-%d' % (self.chrom, self.start_pos, self.end_pos)
@@ -140,7 +142,7 @@ class Haplotype(object):
                 # Get sequence up to one base before the variant. And DO NOT
                 # contain the refernce base on v.POS, which one is already
                 # the first base of mutate-seq on v.POS
-                ref = self.fa_stream.fetch(self.chrom, current_pos, v.POS - 1)
+                ref = fa_sequence[current_pos:v.POS - 1]
                 # Mutate-seq v.POS
                 if v.ALT[0] is not None:
                     seq.append(ref + v.ALT[0].sequence)
@@ -156,7 +158,7 @@ class Haplotype(object):
                              'variant...' % (current_pos, self.end_pos))
             
         if current_pos < self.end_pos:
-            seq.append(self.fa_stream.fetch(self.chrom, current_pos, self.end_pos))
+            seq.append(fa_sequence[current_pos:self.end_pos])
         # Join them to be a single string
         return ''.join(seq)
 

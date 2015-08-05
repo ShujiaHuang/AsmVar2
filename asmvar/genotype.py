@@ -3,18 +3,19 @@ This module contain fucntions and class for genotyping the variats.
 
 This module will connect the `Haplotype` and `alignment` class
 """
+import sys
 import copy
 from itertools import combinations as itertools_combinations
 import numpy as np
 
 import time
 
-
 import vcf
 import alignment as alg # The alignment module
 from haplotype import Haplotype
 
 import datum as DM
+COMDM = DM.CommonDatum()
 
 class Diploid(object):
     """
@@ -32,125 +33,54 @@ class Diploid(object):
             raise ValueError('[ERROR] The two haplotypes did not have the same '
                              'haplotype region, could not build up a diploid.')
 
-        self.hap1 = haplotype1 # Do I have use deepcopy here?
-        self.hap2 = haplotype2 # Do I have use deepcopy here?
+        self.hap1 = haplotype1 # Do not modify any thing in `self.hap1`
+        self.hap2 = haplotype2 # Do not modify any thing in `self.hap2`
 
-    def _cal_realign_regions(self):
+        # The size of this likelihood is depandent by the sample number
+        # and it's the same with the row size of self.hap1.loglikelihood or 
+        # self.hap2.loglikelihood. And the likelihood in `self.likelihood` is
+        # not the log value any more, it's a probability now.
+        # pop likelihood means the likelihood of population
+        self.pop_loglikelihood = self._set_genotype_likelihood() 
+
+    def _set_genotype_likelihood(self):
         """
-        """
-        boundary = 5
-        regions  = set()
-        if len(self.hap1.variants) == 0 and len(self.hap1.variants) == 0:
-            # Small haplotype or it may be a big haplotype but it's a refernce
-            # haplotype and have no variants in it and just cut the load reads
-            # region to fix the max aligment size.
-            start = self.hap1.hap_start - 1
-            end   = min(self.hap1.hap_start + boundary, 
-                        self.hap1.hap_end)
-            regions.add((start, end))
-        else: 
-            # Hete or homo variants genotype.
-            for v in self.hap1.variants:
-                regions.add((max(0, v.POS - boundary), v.POS + boundary))
-            for v in self.hap2.variants:
-                regions.add((max(0, v.POS - boundary), v.POS + boundary))
-            """
-            if len(self.hap1) < COMDM.max_align_size:
-                regions.add((self.hap1.hap_start - 1, self.hap1.hap_end))
-            else:
-                # Big haplotype! We should not load all the reads in this 
-                # process or it'll cost a lot of time in mapping. We just 
-                # prefer reads which loaded around the variants' breakpoints. 
-                for v in self.hap1.variants:
-                    regions.add((max(0, v.POS - boundary), v.POS + boundary))
-
-            if len(self.hap2) < 0:
-                regions.add((self.hap2.hap_start - 1, self.hap2.hap_end))
-            else:
-                for v in self.hap2.variants:
-                    regions.add((max(0, v.POS - boundary), v.POS + boundary))
-            """
-
-        # Cause: Some regions in 'regions' may overlap with others
-        # but I'll deal with this situation in `alg.alignReadToHaplotype`
-        return self._merge(sorted(list(regions)))
-
-    def _merge(self, regions, dis_delta = 1):
-        """
-        Merge the region if them happen to overlap with others
-        retrun a list of sorted regions.
-
-        Args:
-            'regions': A list of sorted regions. Format: (start, end)
-        """
-        new_reg = []
-        pre_pos = regions[0][0] # pre start postion
-        flag    = False
-        reg_start, reg_end = 0, 0
-        for start, end in regions:
-            if end < start:
-                raise ValueError('The region start > end (%d, %d). This is '
-                                 'not allow when call merge function in ge-'
-                                 'notype.' % (start, end))
-            if not flag: # The light is on => get region
-                reg_start, reg_end = start, end
-                flag = True
-            else:
-                if pre_pos > start:
-                    raise ValueError("Your regions haven't been sorted.\n")
-                if reg_end + dis_delta >= start:
-                    # Overlap and should be merged
-                    if end > reg_end: reg_end = end
-                else:
-                    new_reg.append((reg_start, reg_end))
-                    reg_start, reg_end = start, end
-            pre_pos = start
-
-        if flag: new_reg.append((reg_start, reg_end))
-
-        return new_reg
-        
-    def calLikelihood(self, read_buffer_dict, bam_reader):
-        """
+        The genotype likelihood must be 1D array
         Calculate the genotype likelihood for this single bam_reader's sample.
-
-        Args:
-            `read_buffer_dict`: A hash to reads. It's a contianer of reads, 
-                                use it to prevent recalculting the hash-sequence 
-                                for the same reads. This could save the running 
-                                time.
-            `bam_readers`: A single bamfile reader opened by `pysam.AlignmentFile`
 
         return a log10 likelihood.
         """
-        # List of likelihood for each aligning read. each value in the array
-        # represent a likelihood value of read align to the haplotype
-        # Remember these likelihood will be changed follew different bamfile
-        regions = self._cal_realign_regions()
-        self.hap1.likelihood = alg.alignReadToHaplotype(self.hap1,
-                                                        read_buffer_dict,
-                                                        bam_reader,
-                                                        regions)
-        self.hap2.likelihood = alg.alignReadToHaplotype(self.hap2,
-                                                        read_buffer_dict,
-                                                        bam_reader,
-                                                        regions)
-        lksize1 = len(self.hap1.likelihood)
-        lksize2 = len(self.hap2.likelihood)
-        if lksize1 != lksize2:
+        # The column is a list of likelihood for each aligning read. 
+        # each row represent to a sample.
+        s_size1 = len(self.hap1.loglikelihood)
+        s_size2 = len(self.hap2.loglikelihood)
+        if s_size1 != s_size2:
             raise ValueError('[ERROR] The two haplotype in this diploid must'
-                             'have the same number alignment of reads. But '
-                             'the number is %s and %s .' % (lksize1, lksize2))
+                             'have the same number alignment of sample.  But'
+                             'the number is %s and %s.' % (s_size1, s_size2))
 
-        likelihood = None
-        if lksize1: # Not empty 
-            likelihood = 0.0
+        loglikelihoods = []
+        for i in range(s_size1):
+            # loop sample
+            loglikelihoods.append(self.__calIndividualLikelihood(
+                self.hap1.loglikelihood[i], self.hap2.loglikelihood[i]))
+        return loglikelihoods
 
-        # Calculate the log10 likelihood for this diploid region
+    def __calIndividualLikelihood(self, loglikelihood1, loglikelihood2):
+
+        lksize1 = len(loglikelihood1)
+        lksize2 = len(loglikelihood2)
+        if lksize1 != lksize2:
+            raise ValueError('[ERROR]The two haplotype in this diploid must '
+                             'have the same number alignment of reads.  But '
+                             'the number is %s and %s.' % (lksize1, lksize2))
+
+        # Log value
+        likelihood = 0.0 if lksize1 else None # May be no read coverage
         for i in range(lksize1):
 
-            log10lk1 = self.hap1.likelihood[i] 
-            log10lk2 = self.hap2.likelihood[i] 
+            log10lk1 = loglikelihood1[i] 
+            log10lk2 = loglikelihood2[i] 
 
             # Almost good to 1000 times. Just take the highest and forget 
             # the small one
@@ -166,60 +96,55 @@ class Diploid(object):
 
             # Calculate as the normal way: Combine the two likelihood
             else:
-                prob = 0.5 * (np.power(10, log10lk1) + np.power(10, log10lk2))
+                prob = 0.5 * (10 ** log10lk1 + 10 ** log10lk2)
                 likelihood += np.log10(prob) # now it's a log10 value
 
         # Generally, for our situation the likelihood should always < 0, but 
         # it may > 0, once we adjust with flank region of haplotype in the 
         # `alignReadToHaplotype` process.
-        read_map_count = lksize1 # Count of mapping reads of this sample
-
         best_loglikelihood = -1e20
-        return max(best_loglikelihood, likelihood), read_map_count
-
+        return max(best_loglikelihood, likelihood) # log value
 
 def generateAllGenotypes(haplotypes):
     """
     Generate a list of potentail genotypes. 
     """
-    gentypes   = []
+    gentypes = []
     index = range(len(haplotypes))
     for i in index:
         for j in index[i:]:
             # Create Diploid
-            # Each element is [diploid, hap_hash_id1, hap_hash_id2]
-            # hash_id is the identify code of each haplotype!
-            gentypes.append([Diploid(haplotypes[i], haplotypes[j]), 
-                             hash(haplotypes[i]), hash(haplotypes[j])])
+            gentypes.append(Diploid(haplotypes[i], haplotypes[j]))
 
     return gentypes
 
-def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
+def generateAllHaplotypeByVariants(chr_fa_seq, max_read_len, winvar):
     """
     Generate all the potential haplotype in the window of `winwar`.
     And return a list of haplotype, corresponing to all the possible
     combination of variants in this specific window
 
     Args:
-        `ref_fa_stream`: Input fasta stream of reference
+        `chr_fa_seq`: The fasta sequence of chromsome in `winvar`
         `max_read_len`: The max length of reads
         `winvar`: It's dict(chrom=chrom, start=start, end=end, variant=var)
     """
     # This is the reference haplotype attempt that no variants in this window
-    #refhap = Haplotype(ref_fa_stream, winvar['chrom'], winvar['start'], 
+    #refhap = Haplotype(chr_fa_seq, winvar['chrom'], winvar['start'], 
     #                   winvar['end'], max_read_len)
     haplist = [] # Initial with empty list
     num_var = len(winvar['variant'])
     vindex  = range(num_var) # An array contain all the index of variants
     var_overlap_index = _get_overlap_var_index(winvar['variant'])
+
     # Generate all the combination of haplotypes
     # All the combinantion of haplotype may be too much! 
-
     for idxs in itertools_combinations(vindex, num_var):
         # Because we have REF in ALT array, swe do not have to iter from 1 but 
         # from 'num_var' directly
 
-        new_idxs = _recreate_varaint_idxlist_by_overlop(idxs, winvar['variant'],
+        new_idxs = _recreate_varaint_idxlist_by_overlop(idxs, 
+                                                        winvar['variant'],
                                                         var_overlap_index)
         for idx in new_idxs:
 
@@ -242,7 +167,7 @@ def generateAllHaplotypeByVariants(ref_fa_stream, max_read_len, winvar):
                         tmp.ALT   = [v.ALT.pop()]
                     var.append(copy.deepcopy(tmp))
 
-                hap = Haplotype(ref_fa_stream, winvar['chrom'],
+                hap = Haplotype(chr_fa_seq, winvar['chrom'],
                                 winvar['start'], winvar['end'], 
                                 max_read_len, var)
                 haplist.append(hap)
@@ -306,7 +231,7 @@ def _recreate_varaint_idxlist_by_overlop(index_list,
             pre_index = i
 
     new_index_list = []
-    need_iter = True
+    need_iter      = True
     while need_iter:
 
         need_iter = False
