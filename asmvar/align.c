@@ -12,7 +12,8 @@
 #include <assert.h>
 
 // defined here because it is used in fastAlignmentRoutine and calculateFlankScore
-const short n_score = 0*4;
+//const short n_score = 0*4;
+const short n_score = 8 * 4; // By Shujia Huang 2015-07-30
 
 // define the DEBUG symbol to print the DP table and various running variables
 // #define DEBUG 1
@@ -240,7 +241,7 @@ AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const c
 #endif
     
     // seq1 needs updating; seq2 is current
-    char c = (8 + s/2 < len1) ? seq1[ 8+(s/2) ] : 'N';
+    char c = (8 + s/2 < len1) ? seq1[8+(s/2)] : 'N';
     _seq1win   = _mm_insert_epi16( _mm_srli_si128( _seq1win,   2 ), c, 8-1 );
     _seq1nqual = _mm_insert_epi16( _mm_srli_si128( _seq1nqual, 2 ), (c=='N') ? n_score : pos_inf, 8-1 );
     _gap_open  = _mm_insert_epi16( _mm_srli_si128( _gap_open, 2 ),
@@ -402,8 +403,7 @@ AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const c
 //_________________________________________________________________________________________________
 
 
-int calculateFlankScore(int hapLen, int hapFlank, const char* quals, const char* localgapopen, int gapextend, int nucprior,
-			int firstpos, const char* aln1, const char* aln2) {
+int calculateFlankScore(int hapLen, int hapFlank, const char* quals, const char* localgapopen, int gapextend, int nucprior, int firstpos, const char* aln1, const char* aln2) {
 
   char prevstate = 'M';
   int x = firstpos;     // index into haplotype

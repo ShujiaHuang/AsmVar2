@@ -16,10 +16,9 @@ typedef struct tAlignTag {
 // Add End
 
 // The score of 'fastAlignmentRoutine' is the smaller the better and exactly mapping will be 0, others will larger than 0.
-AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, int len1, int len2, int gapextend, int nucprior,
-			 const char* localgapopen, char* aln1, char* aln2);
+AlignTagPointer fastAlignmentRoutine(const char* seq1, const char* seq2, const char* qual2, int len1, int len2, int gapextend, int nucprior, const char* localgapopen, char* aln1, char* aln2);
 
-int calculateFlankScore(int hapLen, int hapFlank, const char* quals, const char* localGapOpen, int gapExtend, int nucprior,
-			int firstpos, const char* aln1, const char* aln2);
+int calculateFlankScore(int hapLen, int hapFlank, const char* quals, const char* localGapOpen, int gapExtend, int nucprior, int firstpos, const char* aln1, const char* aln2);
 
 #endif
+
