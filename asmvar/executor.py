@@ -133,6 +133,7 @@ class VariantsGenotype(object):
             # The format of hap_info's element is: 
             # [start, end, [haplotypes], wvar] 
             hap_info = self.construct_haplotype_by_variant(chrom)
+            if not hap_info: continue
             # Calculate the likelihood information of haplotype in `hap_info`
             self.read_realign_to_haplotype(chrom, hap_info) 
 
