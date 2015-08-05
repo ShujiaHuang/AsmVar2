@@ -44,8 +44,9 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
 
     Requires pysam
     """
-    end_pos = 0
+    start_pos, end_pos = hap_info[0][0], hap_info[0][1]
     for h in hap_info:
+        if h[0] < start_pos: start_pos = h[0]
         if h[1] > end_pos: end_pos = h[1]  
 
     hapidx2realign_region = {}
@@ -55,12 +56,12 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
     start_loop_idx = 0
     t_n, o_n = 0, 0
     print >> sys.stderr, '[INFO] Now loading the bamfile:', chrom, bamfile
-    for al in bam_reader.fetch(chrom):
+    for al in bam_reader.fetch(chrom, start_pos, end_pos):
 
         alig_start = al.pos + 1 
         alig_end   = al.aend if al.aend else al.pos + al.qlen
 
-        if alig_end > end_pos: break # Don't need to read bam now
+        #if alig_end > end_pos: break # Don't need to read bam now
 
         if pre_start and pre_start > alig_start:
             raise ValueError('[ERROR] The bamfile(%s) should be sorted!' % bamfile)
