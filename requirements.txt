@@ -1,3 +1,4 @@
+tabix (0.2.6)
 pysam (0.8.2.1)
 PyVCF (0.6.7)
 numpy (1.9.1)
