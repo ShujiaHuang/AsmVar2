@@ -63,7 +63,7 @@ def test_vutil_get_sequence_context():
     fa = FastaFile('tests/data/ex1.fa')
     vcf_readers = vcreader(['tests/data/ex1.vcf.gz'], 'options')
     varlist = vcf_readers.variants('chr2')
-    vutil.get_sequence_context(fa, varlist[0])
+    vutil.get_sequence_context(fa.fetch('chr2'), varlist[0])
 
 def test_vutil_homoRunForOneVariant():
 
@@ -116,6 +116,7 @@ def test_common_SeqHashTable():
 
     ht  = com.SeqHashTable('') # Empty
     seq = 'ATCGCCGcccNatcgccgcccc'
+    # seq = 'nnnnnNnnNnnNNNNNNNNNnn'
     # Build the hash table for 'seq'
     ht  = com.SeqHashTable(seq, dm.CommonDatum().hashmer)
 
@@ -157,36 +158,59 @@ def test_align_fastAlignmentRoutine():
 
     print '\n\n** Now testing the align module **\n\n'
 
-    seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTCCATGTACACACGCTGTCCTATGTACTTAT'
     #seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTGA'
-    #seq2 = 'GGGAACAGGGGGGTGCACTAATGCGCTCCACGCC'
-    seq2 = 'CAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGT'
-    qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,;9'
+    #seq2 = 'ACCGGGCAGGGGGGAGCACTAATGCGACCTCCAC'
+    #qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,'
+    #seq1 = 'AAAGGGCAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGTGTGTCCATGTACACACGCTGTCCTATGTACTTAT'
+    #seq2 = 'CAGGGGGGAGCACTAATGCGACCTCCACGCCCTTGT'
+    #qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,;9'
 
-    print seq1,'\n',seq2,'\n\n'
+    seq1 = ('CACTAGTGGCTCATTGTAAATGTGTGGTTTAACTCGTCCATGGCCCAGCATTAGGGAGCT'
+           'GTGGACCCTGCAGCCTGGCTGTGGGGGCCGCAGTGGCTGAGGGGTGCAGAGCCGAGTCAC'
+           'GGGGTTGCCAGCACAGGGGCTTAACCTCTGGTGACTGCCAGAGCTGCTGGCAAGCTAGAG'
+           'TCCCATTTGGAGCCCCTCTAAGCCGTTCTATTTGTAATGAAAACTATATTTATGCTATTC'
+           'AGTTCTAAATATAGAAATTGAAACAGCTGTGTTTAGTGCCTTTGTTCAACCCCCTTGCAA'
+           'CAACCTTGAGAACCCCAGGGAATTTGTCAATGTCAGGGAAGGAGCATTTTGTCAGTTACC'
+           'AAATGTGTTTATTACCAGAGGGATGGAGGGAAGAGGGACGCTGAAGAACTTTGATGCCCT'
+           'CTTCTTCCAAAGATGAAACGCGTAACTGCGCTCTCATTCACTCCAGCTCCCTGTCACCCA'
+           'ATGGACCTGTGATATCTGGATTCTGGGAAATTCTTCATCCTGGACCCTGAGAGATTCTGC'
+           'AGCCCAGCTCCAGATTGCTTGTGGTCTGACAGGCTGCAACTGTGAGCCATCACAATGAAC'
+           'AACAGGAAGAAAAGGTCTTTCAAAAGGTGATGTGTGTTCTCATCAACCTCATACACACAC'
+           'ATGGTTTAGGGGTATAATACCTCTACATGGCTGATTATGAAAACAATGTTCCCCAGATAC'
+           'CATCCCTGTCTTACTTCCAGCTCCCCAGAGGGAAAGCTTTCAACGCTTCTAGCCATTTCT'
+           'TTTGGCATTTGCCTTCAGACCCTACACGAATGCGTCTCTACCACAGGGGGCTGCGCGGTT'
+           'TCCCATCATGAAGCACTGAACTTCCACGTCTCATCTAGGGGAACAGGGAGGTGCACTAAT'
+           'GCGCTCCACGCCCAAGCCCTTCTCACAGTTTCTGCCCCCAGCATGGTTGTACTGGGCAAT'
+           'ACATGAGATTATTAGGAAATGCTTTACTGTCATAACTATGAAGAGACTATTGCCAGATGA'
+           'ACCACACATTAATACTATGTTTCTTATCTGCACATTACTACCCTGCAATTAATATAATTG'
+           'TGTCCATGTACACACGCTGTCCTATGTACTTATCATGACTCTATCCCAAATTCCCAATTA'
+           'CGTCCTATCTTCTTCTTAGGGAAGAACAGCTTAGGTATCAATTTGGTGTTCTGTGTAAAG'
+           'TCTCAGGGAGCCGTCCGTGTCCTCCCATCTGGCCTCGTCCACACTGGTTCTCTTGAAAGC'
+           'TTGGGCTGTAATGATGCCCCTTGGCCATCACCCAGTCCCTGCCCCATCTCTTGTAATCTC'
+           'TCTCCTTTTTGCTGCATCCCTGTCTTCCTCTGTCTTGATTTACTTGTTGTTGGTTTTCTG'
+           'TTTCTTTGTTTGATTTGGTGGAAGACATAATCCCACGCTTCCTATGGAAAGGTTGTTGGG'
+           'AGATTTTTAATGATTCCTCAATGTTAAAATGTCTATTTTTGTCTTGACACCCAACTAATA'
+           'TTTGTCTGAGCAAAACAGTCTAGATGAGAGAGAACTTCCCTGGAGGTCTGATGGCGTTTC'
+           'TCCCTCGTCTTCTTA')
+    seq1 = 'GCAATCCCACTTGTGNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN'
+    seq1 = 'GTAGGAATGTAAAATGGTAGAGCCACTATGGAAAACAGTATGGAGGGTCCTCAAAACATTAAAAAATAGACCTACCATATGATGCAGCAATCCCACTTGTGNNNNNNNNNNNNNN'
+    seq1 = 'GTAAAATGGTAGAGCCACTATGGAAAACAGTATGGAGGGTCCTCAAAACATTAAAAAATAGACCTACCATATGATGCAGCAATCCCACTTGTGGGCATTTNNNNNNN'
+    seq2 = 'GTAAAATGGTAGAGCCACTATGGAAAACAGTATGGAGGGTCCTCAAAACATTAAAAAATAGACCTACCATATGATGCAGCAGTCCCACTTGTGGGCATTT'
+    qual = '<<86<<;<78<<<)<;4<67<;<;<74-7;,;8,;88888888888888888888888888888888888888888888888888888888888888888'
 
-    aln1 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
-    aln2 = ''.join([str('\0') for i in range(2 * len(seq2) + 15)])
-    local_gap_open = 'NKJHFA=854210/.-,,+**))(((\'\'\'&&&%%%$$$$#####"""""'
+    aln1 = ''.join(['\0' for i in range(2 * len(seq2) + 15)])
+    aln2 = ''.join(['\0' for i in range(2 * len(seq2) + 15)])
+    #local_gap_open = 'NKJHFA=854210/.-,,+**))(((\'\'\'&&&%%%$$$$#####"""""'
+    local_gap_open = '--------------------*----------------------------------------------------------------------------------------------'
     
     read_start_in_hap = 0
     align.fastAlignmentRoutine.restype = ctypes.POINTER(AlignTagPointer)
     score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2)
 
-
     if score.contents.score == -1:
         score.contents.score = 1000
     print '\n\n*** After Align ***'
-    print 'align score: ', score.contents.score, '\t', score.contents.pos
-    print 'align1: ', aln1, len(aln1)
-    print 'align2: ', aln2, len(aln2)
-    print '\n'
-
-    score.contents.score -= align.calculateFlankScore(len(seq1), 10, qual, local_gap_open, 3, 2, score.contents.pos + read_start_in_hap, aln1, aln2)
-
-    #seq2 = 'CAGGGGGGAACTAATGCGACCTCCACGCCCTTAGTG'
-    #score = align.fastAlignmentRoutine(seq1, seq2, qual, len(seq2) + 15, len(seq2), 3, 2, local_gap_open, aln1, aln2)
-    print 'align score: ', score.contents.score, '\t', score.contents.pos
+    print 'align score:', score.contents.score, ', POS:', score.contents.pos
     print 'align1: ', aln1, len(aln1)
     print 'align2: ', aln2, len(aln2)
     print '\n'
