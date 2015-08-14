@@ -13,8 +13,7 @@ import string
 from subprocess import Popen, PIPE
 
 import vcf
-import pysam
-#from pysam import TabixFile # I use the tabix module in pysam
+import pysam # I use the tabix module in pysam
 
 def get_opt():
     """ Loading parameter for scaling vcf. """
@@ -30,11 +29,19 @@ def get_opt():
                     default = 10)
     optp.add_option('-d', '--outdir', dest = 'outdir', metavar = 'DIR',
                     help = 'The subfile output directory.', default = '.')
-    optp.add_option('-p', '--prefix', dest = 'outprefix', metavar = 'OUT',
-                    help = 'Out file prefix', default = 'test')
     optp.add_option('--rec', dest = 'recursive', metavar = 'Boolen',
                     help = 'Recursvie to split the input vcffile(-v) by '
-                    'its chrom ID(-c) or not.', default = '')
+                    'its chromosome IDs(-c) or not.', default = '')
+
+    # For Job running
+    optp.add_option('-p', '--prefix', dest = 'outprefix', metavar = 'OUT',
+                    help = 'Out file prefix', default = 'test')
+    optp.add_option('--prog', dest = 'prog', metavar = 'STR',
+                    help = 'The program for jobs', default = '')
+    optp.add_option('--cmp', dest = 'comparameter', metavar = 'STR',
+                    help = 'Common parameter for --prog', default = '')
+    optp.add_option('--qsub', dest = 'qsub', metavar = 'QSUB',
+                    help = 'qsub parameters for jobs', default = '')
 
     opt, _ = optp.parse_args()
     if not opt.vcffile: optp.error('Required [-v vcffile]\n')
@@ -42,8 +49,14 @@ def get_opt():
 
     opt.number = abs(string.atoi(opt.number))
     opt.recursive = True if opt.recursive else False
+
+    if opt.prog:
+        opt.prog = os.path.abspath(opt.prog)
+
+    # Create the outdir if it's not exists
     if not os.path.exists(opt.outdir):
         os.makedirs(opt.outdir)
+    opt.outdir = os.path.abspath(opt.outdir)
 
     return opt
 
@@ -56,13 +69,74 @@ def main(opt):
         # Don't need to split the VCF file
         sub_vcf_files = [opt.vcffile]
 
-    print '\n'.join(sub_vcf_files)
+    outinfo = createJobScript(opt.prog, opt.comparameter, sub_vcf_files, 
+                              opt.outdir, opt.outprefix, opt.recursive)
 
-def createJobScript(input_files):
-    pass
+    # Qsub the jobs
+    if opt.qsub:
+        qsubJobs(opt.qsub, [q[0] for q in outinfo])
+
+    print '#Shell_Script\tOutput_file\tOutput_log'
+    print '\n'.join(['\t'.join(s) for s in outinfo])
+
+def qsubJobs(qsub_cmd, jobscripts):
+    """
+    Submitting jobs by qsub_cmd
+    """
+    import commands
+    for q in jobscripts:
+
+        sh_dir = os.path.dirname(os.path.abspath(q))
+        (err_stat, job_id) = commands.getstatusoutput('cd %s && %s %s' % 
+                                                      (sh_dir, qsub_cmd, q))
+        if not err_stat:
+            print >> sys.stderr, '[Good] Submitting job %s (%s) done' % (q, job_id)
+        else:
+            print >> sys.stderr, '[ERRR] Submitting job %s (%s) fail' % (q, job_id)
+        
+
+def createJobScript(program, com_parameters, input_files, 
+                    outdir, outprefix, recursive):
+    """
+    Create job script.
+    Args:
+    """
+    tmp_out_dir = outdir + '/tmp_out_dir'
+    shell_dir   = outdir + '/shell'
+    for d in (tmp_out_dir, shell_dir):
+        if not os.path.exists(d):
+            os.makedirs(d)
+
+    outinfo   = []
+    shell_pfx = shell_dir + '/' + outprefix
+    for i, file in enumerate(input_files):
+
+        fh = pysam.TabixFile(file)
+        for chr in fh.contigs:
+
+            sub_o_dir = tmp_out_dir + '/' + chr if recursive else tmp_out_dir
+            if not os.path.exists(sub_o_dir):
+                os.makedirs(sub_o_dir)
+            outpfx = sub_o_dir + '/' + outprefix
+
+            sub_out_file = '.'.join([outpfx, str(i + 1), chr, 'vcf'])
+            sub_out_log  = '.'.join([outpfx, str(i + 1), chr, 'log'])
+            sub_sh_file  = '.'.join([shell_pfx, str(i + 1), chr, 'sh'])
+            outinfo.append([sub_sh_file, sub_out_file, sub_out_log])
+
+            sh = open(sub_sh_file, 'w')
+            sh.write('time python %s genotype %s -c %s -v %s > %s 2> %s\n' % 
+                     (program, com_parameters, chr, file, sub_out_file,
+                      sub_out_log))
+            sh.close()
+
+        fh.close()
+
+    return outinfo
 
 def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
 
+    print >> sys.stderr, '[INFO] ** Countting vcf lines. **'
     vcf_line_count, chrom_ids = _get_vcf_line_count(vcffile, ref_chrom)
 
     # get vcffile's file name by os.path.split
@@ -70,6 +144,7 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
     if not os.path.exists(sub_outdir):
         os.makedirs(sub_outdir)
 
+    print >> sys.stderr, '[INFO] ** Splitting vcf file. **'
     vcf_reader = vcf.Reader(filename = vcffile)
     sub_vcf_files = []
     if is_rec_split: 
@@ -84,6 +159,8 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
                 
             tot_num, lniof = _set_step_num(vcf_line_count[chrom], split_num)
             outprefix = sub_chr_dir + '/tmp.in.' + fname + '.' + chrom
+            print >> sys.stderr, ('[INFO] ** Splitting VCF file of %s '
+                                  'into %d. **' % (chrom, tot_num))
             for f in outputSubVCF(vcf_reader.fetch(chrom), lniof, 
                                   tot_num, outprefix):
                 sub_vcf_files.append(f)
@@ -101,6 +178,7 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
         f = pysam.tabix_index(sub_vcf_files[i], force = True, preset = 'vcf')
         sub_vcf_files[i] = f # The compressed file after tabix
 
+    print >> sys.stderr, '[INFO] ** Splited files all done. **'
     return sub_vcf_files
 
 def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n, 
@@ -120,6 +198,10 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
     vcf_writer = None
     for r in vcf_reader:
 
+        if line_num % 100000 == 0:
+            print >> sys.stderr, ('[INFO] >> outputting %d lines in '
+                                  'sub file.' % (line_num + 1))
+
         if line_num % line_num_in_one_file == 0:
 
             if vcf_writer:
@@ -138,6 +220,8 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
     if vcf_writer:
         vcf_writer.close()
 
+    print >> sys.stderr, ('[INFO] >> All outputting %d lines in '
+                          'sub file.' % (line_num))
     return sub_files
 
 def _get_vcf_line_count(vcffile, chrom_id):
@@ -146,7 +230,7 @@ def _get_vcf_line_count(vcffile, chrom_id):
     """
 
     f = pysam.TabixFile(vcffile)
-    chrom_id_set = set(f.contigs)
+    chrom_id_set = set(f.contigs) # Initial
     f.close()
 
     if chrom_id:
@@ -155,21 +239,27 @@ def _get_vcf_line_count(vcffile, chrom_id):
     line_count = {}
     vcf_reader = vcf.Reader(filename = vcffile)
 
+    
     for chr in chrom_id_set:
         for record in vcf_reader.fetch(chr):
 
-            chrom_id_set.add(record.CHROM)
             line_count['all'] = line_count.get('all', 0) + 1
             line_count[record.CHROM] = line_count.get(record.CHROM, 0) + 1
+            if line_count['all'] % 100000 == 0:
+                print >> sys.stderr, ('[INFO] >> Countting %d lines. **' % 
+                                      (line_count['all']))
 
+    print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
     return line_count, list(chrom_id_set)
 
 def _set_step_num(line_count, sub_scale_num):
 
     step = line_count / sub_scale_num
     if step == 0: 
-        step = 1
-        sub_scale_num = line_count
+        print >> sys.stderr, ('[WARNING] The split file number is bigger than ' 
+                              'the line number of VCF files. Reset it to be 1.')
+        step = line_count
+        sub_scale_num = 1
     
     return sub_scale_num, step
 
@@ -177,4 +267,4 @@ if __name__ == '__main__':
 
     cmdopt = get_opt()
     main(cmdopt)
-    print >> sys.stderr, '** For the flowers bloom in the desert **'
+    print >> sys.stderr, '**>> For the flowers bloom in the desert <<**\n'
