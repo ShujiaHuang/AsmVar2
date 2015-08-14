@@ -109,6 +109,8 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
                     # got the max loglikehood
                     if alis < hap_info[i][2][mlhi].variants[j].POS < alie:
                         hap_info[i][2][mlhi].variants[j].cov[sam_idx] += 1
+                    #h = hap_info[i][2][mlhi]
+                    #print >> sys.stderr, '[XXXX]', hash(h), sam_idx, h.variants[j].REF == h.variants[j].ALT[0], alis, alie, h.variants[j].POS, h.variants[j].cov[sam_idx] #[v.cov for v in h.variants]
 
         t_n += 1
         if is_ovlp: o_n += 1
@@ -285,6 +287,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                         aln1, aln2)
 
                 if ali.contents.score < best_ali_score:
+                    #print >> sys.stderr, '[XXX]', max_hit, s, e, ali.contents.pos, ali.contents.score, '\n\t',haplotype.sequence[s:e], '\n\t', read.seqs, '\n\t', haplotype.gap_open[s:e]
                     best_ali_score = ali.contents.score
                     best_ali_pos   = i + 1 # position should be 1-base 
 
@@ -300,6 +303,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     # the haplotype. This will only happen in the case of very large deletions.
     read_start_in_hap = min(len(haplotype) - hap_len_for_align, 
                             read_align_pos - haplotype.hap_start)
+    #print >> sys.stderr, '[zzz]', len(haplotype), hap_len_for_align, read_align_pos, haplotype.hap_start, read_start_in_hap, best_ali_pos, best_ali_pos + haplotype.hap_start
 
     if read_start_in_hap != best_ali_pos:
         read_start_in_hap = max(0, i - int(round(ALIMER / 2.0)))
@@ -331,6 +335,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
                 read_start_in_hap + firstpos,
                 aln1, aln2)
 
+        #print >> sys.stderr, '[YYY]', max_hit, s, e, ali.contents.pos, ali.contents.score, best_ali_score, '\n\t',haplotype.sequence[s:e], '\n\t', read.seqs, '\n\t', haplotype.gap_open[s:e]
         if ali.contents.score < best_ali_score:
             best_ali_score = ali.contents.score
             best_ali_pos   = s + 1
@@ -345,6 +350,7 @@ def singleRead2Haplotype(haplotype, read, read_align_pos):
     # The max value could just be 0 for all situations if we don't adjust
     # the value with 'do_calcu_flank_score'
     loglk = round(COMDM.mot * best_ali_score + prob_read_map_right, 6)
+    #print >> sys.stderr, '[xxx]', COMDM.mot, read.mapqual, best_ali_score, prob_read_map_right, loglk, max(loglk, log_likelihood_threshold)
     return (max(loglk, log_likelihood_threshold),   # It's a log10 value
             haplotype.hap_start + best_ali_pos - 1, # Best align start
             haplotype.hap_start + best_ali_pos + len(read) - 1) # align end
