@@ -10,6 +10,7 @@ import sys
 import os
 import optparse
 import string
+import time
 from subprocess import Popen, PIPE
 
 import vcf
@@ -200,7 +201,8 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
 
         if line_num % 100000 == 0:
             print >> sys.stderr, ('[INFO] >> outputting %d lines in '
-                                  'sub file.' % (line_num + 1))
+                                  'sub file. %s' % 
+								  (line_num + 1, time.asctime()))
 
         if line_num % line_num_in_one_file == 0:
 
@@ -221,7 +223,7 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
         vcf_writer.close()
 
     print >> sys.stderr, ('[INFO] >> All outputting %d lines in '
-                          'sub file.' % (line_num))
+                          'sub file. %s' % (line_num, time.asctime()))
     return sub_files
 
 def _get_vcf_line_count(vcffile, chrom_id):
@@ -246,8 +248,8 @@ def _get_vcf_line_count(vcffile, chrom_id):
             line_count['all'] = line_count.get('all', 0) + 1
             line_count[record.CHROM] = line_count.get(record.CHROM, 0) + 1
             if line_count['all'] % 100000 == 0:
-                print >> sys.stderr, ('[INFO] >> Countting %d lines. **' % 
-                                      (line_count['all']))
+                print >> sys.stderr, ('[INFO] >> Countting %d lines. << %s' % 
+                                      (line_count['all'], time.asctime()))
 
     print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
     return line_count, list(chrom_id_set)
