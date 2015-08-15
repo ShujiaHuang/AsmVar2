@@ -262,7 +262,10 @@ def _set_step_num(line_count, sub_scale_num):
                               'the line number of VCF files. Reset it to be 1.')
         step = line_count
         sub_scale_num = 1
-    
+
+    if step * sub_scale_num < line_count:
+        sub_scale_num += 1
+
     return sub_scale_num, step
 
 if __name__ == '__main__':
