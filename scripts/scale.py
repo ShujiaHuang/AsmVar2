@@ -14,7 +14,6 @@ import string
 import time
 from subprocess import Popen, PIPE
 
-import vcf
 import pysam # I use the tabix module in pysam
 
 def get_opt():
@@ -147,7 +146,6 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
         os.makedirs(sub_outdir)
 
     print >> sys.stderr, '[INFO] ** Splitting vcf file. **'
-    #vcf_reader = vcf.Reader(filename = vcffile)
     vcf_reader = pysam.TabixFile(vcffile)
     vcf_header = '\n'.join([h for h in vcf_reader.header])
 
@@ -222,13 +220,11 @@ def outputSubVCF(vcf_reader, vcf_header, line_num_in_one_file, t_f_n,
 
             sfn += 1
             sub_file = outfile_prefix + '.' + str(sfn) + '_' + str(t_f_n) + '.vcf'
-            #vcf_writer = vcf.Writer(open(sub_file, 'w'), vcf_reader)
             vcf_writer = open(sub_file, 'w')
-            print >> vcf_writer, vcf_header
+            print >> vcf_writer, vcf_header # Output VCF header
             sub_files.append(sub_file)
 
         # Output the VCF record
-        # vcf_writer.write_record(r)
         print >> vcf_writer, r
         line_num += 1
 
