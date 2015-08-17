@@ -147,7 +147,10 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
         os.makedirs(sub_outdir)
 
     print >> sys.stderr, '[INFO] ** Splitting vcf file. **'
-    vcf_reader = vcf.Reader(filename = vcffile)
+    #vcf_reader = vcf.Reader(filename = vcffile)
+    vcf_reader = pysam.TabixFile(vcffile)
+    vcf_header = '\n'.join([h for h in vcf_reader.header])
+
     sub_vcf_files = []
     if is_rec_split: 
         """
@@ -163,13 +166,19 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
             outprefix = sub_chr_dir + '/tmp.in.' + fname + '.' + chrom
             print >> sys.stderr, ('[INFO] ** Splitting VCF file of %s '
                                   'into %d. **' % (chrom, tot_num))
-            for f in outputSubVCF(vcf_reader.fetch(chrom), lniof, 
-                                  tot_num, outprefix):
+            for f in outputSubVCF(vcf_reader.fetch(chrom), 
+                                  vcf_header,
+                                  lniof, 
+                                  tot_num, 
+                                  outprefix):
                 sub_vcf_files.append(f)
     else:
-        outprefix = sub_outdir + '/tmp.in.' + fname
+        outprefix      = sub_outdir + '/tmp.in.' + fname
         tot_num, lniof = _set_step_num(vcf_line_count['all'], split_num)
-        sub_vcf_files  = outputSubVCF(vcf_reader, lniof, tot_num, outprefix)
+        sub_vcf_files  = outputSubVCF(vcf_reader, vcf_header, lniof, 
+                                      tot_num, outprefix)
+
+    vcf_reader.close()
 
     # compress all the sub file for tabix
     for i, f in enumerate(sub_vcf_files): 
@@ -183,7 +192,7 @@ def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
     print >> sys.stderr, '[INFO] ** Splited files all done. **'
     return sub_vcf_files
 
-def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n, 
+def outputSubVCF(vcf_reader, vcf_header, line_num_in_one_file, t_f_n, 
                  outfile_prefix):
     """
     Split the whole vcf file into several sub-files. Compress by bgzip
@@ -192,6 +201,7 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
     return all the path of subfiles as a list.
 
     Args:
+        `vcf_reader`: VCF reader handle.
         `t_f_n`: Total file numbers. ('split_num' same as opt.number)
     """
     line_num = 0
@@ -212,12 +222,14 @@ def outputSubVCF(vcf_reader, line_num_in_one_file, t_f_n,
 
             sfn += 1
             sub_file = outfile_prefix + '.' + str(sfn) + '_' + str(t_f_n) + '.vcf'
-            vcf_writer = vcf.Writer(open(sub_file, 'w'), vcf_reader)
+            #vcf_writer = vcf.Writer(open(sub_file, 'w'), vcf_reader)
+            vcf_writer = open(sub_file, 'w')
+            print >> vcf_writer, vcf_header
             sub_files.append(sub_file)
 
         # Output the VCF record
-        vcf_writer.write_record(r)
-
+        # vcf_writer.write_record(r)
+        print >> vcf_writer, r
         line_num += 1
 
     if vcf_writer:
@@ -244,12 +256,12 @@ def _get_vcf_line_count(vcffile, chrom_id):
     I = os.popen('gzip -dc %s' % vcffile) if vcffile[-3:] == '.gz' else open(vcffile)
     while 1:
 
-        lines = I.readlines(100000)
+        lines = I.readlines(200000)
         if not lines: break
 
         for line in lines:
             col = line.strip('\n').split()
-            if re.search(r'^#', line) or (col[0] not in chrom_id_set): continue
+            if (col[0] not in chrom_id_set) or re.search(r'^#', line): continue
 
             line_count['all']  = line_count.get('all', 0) + 1
             line_count[col[0]] = line_count.get(col[0], 0) + 1
@@ -257,8 +269,14 @@ def _get_vcf_line_count(vcffile, chrom_id):
             if line_count['all'] % 100000 == 0:
                 print >> sys.stderr, ('[INFO] >> Countting %d lines. << %s' % 
                                       (line_count['all'], time.asctime()))
-            
+    I.close()        
     print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
+
+    # Reset the chrom_id_set, guarantee they always consistent in VCF file
+    chrom_id_set = set(line_count.keys())
+    if 'all' in chrom_id_set:
+        chrom_id_set.remove('all')
+
     return line_count, list(chrom_id_set)
 
 def _set_step_num(line_count, sub_scale_num):
