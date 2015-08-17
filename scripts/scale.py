@@ -50,7 +50,7 @@ def get_opt():
     print >> sys.stderr, 'Parameters: python', ' '.join(sys.argv) 
 
     opt.number = abs(string.atoi(opt.number))
-    opt.recursive = True if opt.recursive else False
+    opt.recursive = True if opt.recursive or opt.ref_chrom else False
 
     if opt.prog:
         opt.prog = os.path.abspath(opt.prog)
@@ -256,19 +256,21 @@ def _get_vcf_line_count(vcffile, chrom_id):
     I = os.popen('gzip -dc %s' % vcffile) if vcffile[-3:] == '.gz' else open(vcffile)
     while 1:
 
-        lines = I.readlines(200000)
+        lines = I.readlines(100000)
         if not lines: break
 
         for line in lines:
-            col = line.strip('\n').split()
-            if (col[0] not in chrom_id_set) or re.search(r'^#', line): continue
 
+            if re.search(r'^#', line): continue
             line_count['all']  = line_count.get('all', 0) + 1
-            line_count[col[0]] = line_count.get(col[0], 0) + 1
-
             if line_count['all'] % 100000 == 0:
                 print >> sys.stderr, ('[INFO] >> Countting %d lines. << %s' % 
                                       (line_count['all'], time.asctime()))
+
+            col = line.strip('\n').split()
+            if (col[0] not in chrom_id_set) or re.search(r'^#', line): continue
+            line_count[col[0]] = line_count.get(col[0], 0) + 1
+
     I.close()        
     print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
 
