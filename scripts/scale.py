@@ -8,6 +8,7 @@ Date: 2015-08-11
 """
 import sys
 import os
+import re
 import optparse
 import string
 import time
@@ -236,21 +237,27 @@ def _get_vcf_line_count(vcffile, chrom_id):
     f.close()
 
     if chrom_id:
-        chrom_ids = set(chrom_id.split(','))
+        chrom_id_set = set(chrom_id.split(','))
 
     line_count = {}
-    vcf_reader = vcf.Reader(filename = vcffile)
 
-    
-    for chr in chrom_id_set:
-        for record in vcf_reader.fetch(chr):
+    I = os.popen('gzip -dc %s' % vcffile) if vcffile[-3:] == '.gz' else open(vcffile)
+    while 1:
 
-            line_count['all'] = line_count.get('all', 0) + 1
-            line_count[record.CHROM] = line_count.get(record.CHROM, 0) + 1
+        lines = I.readlines(100000)
+        if not lines: break
+
+        for line in lines:
+            col = line.strip('\n').split()
+            if re.search(r'^#', line) or (col[0] not in chrom_id_set): continue
+
+            line_count['all']  = line_count.get('all', 0) + 1
+            line_count[col[0]] = line_count.get(col[0], 0) + 1
+
             if line_count['all'] % 100000 == 0:
                 print >> sys.stderr, ('[INFO] >> Countting %d lines. << %s' % 
                                       (line_count['all'], time.asctime()))
-
+            
     print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
     return line_count, list(chrom_id_set)
 
