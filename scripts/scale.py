@@ -247,8 +247,10 @@ def _get_vcf_line_count(vcffile, chrom_id):
     if chrom_id:
         chrom_id_set = set(chrom_id.split(','))
 
-    line_count = {}
-
+    # Initial the dict
+    line_count = {k: 0 for k in chrom_id_set}
+    line_count['all'] = 0
+    
     I = os.popen('gzip -dc %s' % vcffile) if vcffile[-3:] == '.gz' else open(vcffile)
     while 1:
 
@@ -258,20 +260,21 @@ def _get_vcf_line_count(vcffile, chrom_id):
         for line in lines:
 
             if re.search(r'^#', line): continue
-            line_count['all']  = line_count.get('all', 0) + 1
+
+            line_count['all'] += 1
             if line_count['all'] % 100000 == 0:
                 print >> sys.stderr, ('[INFO] >> Countting %d lines. << %s' % 
                                       (line_count['all'], time.asctime()))
 
             col = line.strip('\n').split()
-            if (col[0] not in chrom_id_set) or re.search(r'^#', line): continue
-            line_count[col[0]] = line_count.get(col[0], 0) + 1
+            if col[0] not in chrom_id_set: continue
+            line_count[col[0]] += 1
 
     I.close()        
     print >> sys.stderr, '[INFO] ** The VCF line is %d' % line_count['all']
 
     # Reset the chrom_id_set, guarantee they always consistent in VCF file
-    chrom_id_set = set(line_count.keys())
+    chrom_id_set = set([k for k, v in line_count.items() if v > 0])
     if 'all' in chrom_id_set:
         chrom_id_set.remove('all')
 
