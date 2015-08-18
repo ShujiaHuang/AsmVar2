@@ -102,23 +102,30 @@ def createJobScript(program, com_parameters, input_files,
     Create job script.
     Args:
     """
+
     tmp_out_dir = outdir + '/tmp_out_dir'
     shell_dir   = outdir + '/shell'
     for d in (tmp_out_dir, shell_dir):
         if not os.path.exists(d):
             os.makedirs(d)
 
-    outinfo   = []
-    shell_pfx = shell_dir + '/' + outprefix
+    outinfo = []
     for i, file in enumerate(input_files):
 
         fh = pysam.TabixFile(file)
         for chr in fh.contigs:
 
+            # For output files
             sub_o_dir = tmp_out_dir + '/' + chr if recursive else tmp_out_dir
             if not os.path.exists(sub_o_dir):
                 os.makedirs(sub_o_dir)
             outpfx = sub_o_dir + '/' + outprefix
+
+            # For shell
+            sub_s_dir = shell_dir + '/' + chr if recursive else shell_dir
+            if not os.path.exists(sub_s_dir):
+                os.makedirs(sub_s_dir)
+            shell_pfx = sub_s_dir + '/' + outprefix
 
             sub_out_file = '.'.join([outpfx, str(i + 1), chr, 'vcf'])
             sub_out_log  = '.'.join([outpfx, str(i + 1), chr, 'log'])
