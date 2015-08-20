@@ -50,4 +50,5 @@ if __name__ == '__main__':
     runner[command]()
     #profile.run("genotype()") # Debug
     print >> sys.stderr, '** %s ALL DONE %s **\n' % (command, time.asctime())
+    print >> sys.stderr, '**>> For the flowers bloom in the desert <<**'
 
