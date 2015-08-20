@@ -48,7 +48,7 @@ def get_opt():
     if not opt.vcffile: optp.error('Required [-v vcffile]\n')
     print >> sys.stderr, 'Parameters: python', ' '.join(sys.argv) 
 
-    opt.number = abs(string.atoi(opt.number))
+    opt.number = int(abs(string.atoi(opt.number)))
     opt.recursive = True if opt.recursive or opt.ref_chrom else False
 
     if opt.prog:
@@ -82,7 +82,10 @@ def main(opt):
 
 def qsubJobs(qsub_cmd, jobscripts):
     """
-    Submitting jobs by qsub_cmd
+    Submitting jobs by qsub_cmd.
+
+    Args:
+        `qsub_cmd`:  qsub command. It's depend on your computer cluster.
     """
     import commands
     for q in jobscripts:
@@ -102,7 +105,6 @@ def createJobScript(program, com_parameters, input_files,
     Create job script.
     Args:
     """
-
     tmp_out_dir = outdir + '/tmp_out_dir'
     shell_dir   = outdir + '/shell'
     for d in (tmp_out_dir, shell_dir):
@@ -143,20 +145,23 @@ def createJobScript(program, com_parameters, input_files,
     return outinfo
 
 def splitVCF(vcffile, ref_chrom, split_num, sub_outdir, is_rec_split = True):
+    """
+    Split the input vcffile into pieces.
+    """
+    if not os.path.exists(sub_outdir):
+        os.makedirs(sub_outdir)
 
     print >> sys.stderr, '[INFO] ** Countting vcf lines. **'
     vcf_line_count, chrom_ids = _get_vcf_line_count(vcffile, ref_chrom)
-
-    # get vcffile's file name by os.path.split
-    _, fname = os.path.split(vcffile)
-    if not os.path.exists(sub_outdir):
-        os.makedirs(sub_outdir)
 
     print >> sys.stderr, '[INFO] ** Splitting vcf file. **'
     vcf_reader = pysam.TabixFile(vcffile)
     vcf_header = '\n'.join([h for h in vcf_reader.header])
 
+    # get vcffile's file name by os.path.split
+    _, fname = os.path.split(vcffile)
     sub_vcf_files = []
+
     if is_rec_split: 
         """
         Split the whole vcf file by different chrom in `chrom_ids`.
@@ -297,7 +302,7 @@ def _set_step_num(line_count, sub_scale_num):
         sub_scale_num = 1
 
     if step * sub_scale_num < line_count:
-        sub_scale_num += 1
+        step += 1
 
     return sub_scale_num, step
 
