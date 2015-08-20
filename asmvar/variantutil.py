@@ -211,7 +211,7 @@ class Variant(object):
 
                 variants.add(prevar)
 
-        return sorted(list(variants)) # Sorted by reference pos order 
+        return list(variants)
 
 
 def calPrior(fa_stream, variant):

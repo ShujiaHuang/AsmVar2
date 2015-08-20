@@ -56,12 +56,11 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
     start_loop_idx = 0
     t_n, o_n = 0, 0
     print >> sys.stderr, '[INFO] Now loading the bamfile:', chrom, bamfile
+    alpos = 0
     for al in bam_reader.fetch(chrom, start_pos, end_pos):
 
         alig_start = al.pos + 1 
         alig_end   = al.aend if al.aend else al.pos + al.qlen
-
-        #if alig_end > end_pos: break # Don't need to read bam now
 
         if pre_start and pre_start > alig_start:
             raise ValueError('[ERROR] The bamfile(%s) should be sorted!' % bamfile)
@@ -112,18 +111,19 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
                     #h = hap_info[i][2][mlhi]
                     #print >> sys.stderr, '[XXXX]', hash(h), sam_idx, h.variants[j].REF == h.variants[j].ALT[0], alis, alie, h.variants[j].POS, h.variants[j].cov[sam_idx] #[v.cov for v in h.variants]
 
+        alpos = al.pos + 1
         t_n += 1
         if is_ovlp: o_n += 1
         if t_n % 1000000 == 0:
             print >> sys.stderr, ('[INFO] Loading %d lines and hit POS %d, '
                                   'and %d are happen to overlap. Time: %s' % (
-                                   t_n, al.pos + 1, o_n, time.asctime()))
+                                   t_n, alpos, o_n, time.asctime()))
 
     # Finish looping the whole bamfile of chrom, and we've record all the 
     # likelihood score in haplotype.likelihood of the sample 
     print >> sys.stderr, ('[INFO] Finish Loading %d lines and hit POS %d, '
                           'and %d are happen to overlap. Time: %s\n' % (
-                           t_n, al.pos + 1, o_n, time.asctime()))
+                           t_n, alpos, o_n, time.asctime()))
     bam_reader.close()
 
 def _realign_region_in_hap(haplotypes):

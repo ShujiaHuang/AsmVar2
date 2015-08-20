@@ -208,8 +208,6 @@ class VariantsGenotype(object):
                                                        genotype_likelihoods,
                                                        genotype_hap_hash_id,
                                                        sample_map_nread)
-        """
-        """
 
         """
         hap_idx  = {hash(h):i for i, h in enumerate(haplotypes)}
@@ -385,8 +383,9 @@ class VariantsGenotype(object):
         """
         Loading all the variant in the chromosome `chrom`
         """
-        variants_list = []
         done_load_var = set()
+
+        var_tmp_list = []
         for r in self.vcfs.vcf_reader.fetch(chrom):
             # Load variant each position
             if self.opt.nosnp and r.is_snp: continue
@@ -395,8 +394,14 @@ class VariantsGenotype(object):
             if (r.ALT[0] is None) or (h_id in done_load_var): continue
             done_load_var.add(h_id)
 
-            for v in self._variantReConstruct(vutil.Variant(r).parse()): 
-                variants_list.append(v)
+            for v in vutil.Variant(r).parse(): 
+                var_tmp_list.append(v)
+
+        var_tmp_list  = sorted(var_tmp_list) # Sorted by reference pos order
+        variants_list = []
+
+        for v in self._variantReConstruct(var_tmp_list):
+            variants_list.append(v)
 
         print >> sys.stderr, '[INFO] Finish loading the variants of %s %s' % ( 
             chrom, time.asctime())
