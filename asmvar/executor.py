@@ -100,7 +100,7 @@ class VariantsGenotype(object):
 
         vcf_header_info.add('FORMAT', 'GT', 1, 'String', 'Genotype')
         vcf_header_info.add('FORMAT', 'GQ', 1, 'Integer', 'Genotype Quality')
-        vcf_header_info.add('FORMAT', 'NR', '.', 'Integer', 'Number of reads '
+        vcf_header_info.add('FORMAT', 'ND', '.', 'Integer', 'Number of reads '
                             'covering variant location in this sample')
         vcf_header_info.add('FORMAT', 'NV', '.', 'Integer', 'Number of reads '
                             'containing variant in this sample')
@@ -108,6 +108,13 @@ class VariantsGenotype(object):
             'Normalized, Phred-scaled likelihoods for genotypes as defined in '
             'the VCF specification for AA,AB and BB genotypes, where A = ref '
             'and B = variant. Only applicable for bi-allelic sites.')
+        vcf_header_info.add('FORMAT', 'SB', 4, 'Integer', 
+                            'Per-sample component statistics which comprise '
+                            'the Fisher\'s Exact Test to detect strand bias. '
+                            'The format: [ref-fwd, ref-reverse, non-ref-fwd, '
+                            'non-ref-reverse]')
+        vcf_header_info.add('FORMAT', 'AB', 1, 'Float', 'Allele balance for '
+                            'each het genotype')
 
         return vcf_header_info
 
@@ -252,7 +259,8 @@ class VariantsGenotype(object):
             vcf_data_line.qual   = v.QUAL
             vcf_data_line.filter = v.FILTER
             vcf_data_line.info   = v.INFO
-            vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'NR', 'NV'])
+            vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'ND', 'NV', 
+                                                    'AB', 'SB'])
 
             # The first value in `alt_hash` is REF's hash id
             v_alt_hash = [hash((v.CHROM, v.POS, str(a))) for a in v.ALT]
@@ -270,7 +278,8 @@ class VariantsGenotype(object):
                     genotype_hap_hash_id)
                 # Get the max likelihood and the corresponding allele index
                 # We'll use alllele index to make the 'GT' in VCF
-                max_lh, ale1, ale2, NR, NV = lh[lh[:,0].argmax()]
+                max_lh, ale1, ale2, ND, NV, rf, rr, vf, vr = lh[lh[:,0].argmax()]
+                ref_sb, var_sb = [int(rf), int(rr)], [int(vf), int(vr)]
                 var_gnt_posterior  = max_lh / lh[:,0].sum()
                 phred_ref_p        = self._phred(ref_p)
                 phred_non_ref_p    = self._phred(non_ref_p)
@@ -296,11 +305,20 @@ class VariantsGenotype(object):
                     else:
                         pass
 
+                ab = '.'
+                if ale1 != '.' and ale2 != '.' and ale1 != ale2 and ND > 0:
+                    # Hete genotype
+                    ab = round(float(NV) / ND , 3)
+
+                sb = ','.join([str(d) for d in ref_sb] + 
+                              [str(d) for d in var_sb])
                 tmp = dict(GT = ''.join(str(gt) for gt in GT),
+                           AB = str(ab),
                            GQ = str(phred_var_gnt_posterior),
                            PL = ','.join(str(pl) for pl in PL),
-                           NR = str(int(NR)),
-                           NV = str(int(NV)))
+                           ND = str(int(ND)),
+                           NV = str(int(NV)),
+                           SB = sb)
                 sample = ':'.join(tmp[k] for k in vcf_data_line.format)
                 vcf_data_line.sample.append(sample)
             # Output VCF line
@@ -428,8 +446,8 @@ class VariantsGenotype(object):
             var.ALT = [vcf.model._Substitution(var.REF)] + var.ALT
 
             # Record coverage. Number of reads containing variant in different 
-            # sample
-            var.cov = [0] * self.samplenumber
+            # sample, the format is : [postive strand, reverse strand]
+            var.cov = [[0, 0] for i in range(self.samplenumber)]
 
             # Yields a dictionary to store variants in this window. 
             wvar = dict(chrom = var.CHROM, start = start, end = end, variant = [var])
@@ -477,8 +495,10 @@ class VariantsGenotype(object):
 				# Marginal likelihood for this variant pair among all
 				# the possible genotypes.
                 var2_alt_hash = alt_hash_id[j]
-                marginal_gnt_lh, nr, nv = 0.0, 0, 0
-				# Loop the genotype by looping 'genotype_hap_hash_id'
+                marginal_gnt_lh, nd, nv = 0.0, 0, 0
+                ref_sb = [0, 0] # Record the reference strand bias
+                var_sb = [0, 0] # Record the variant strand bias
+				# Loop the different genotype by looping 'genotype_hap_hash_id'
                 for k, (h1, h2) in enumerate(genotype_hap_hash_id):
                     
                     var1_in_hap1 = var1_alt_hash in hap_alt_var_hash[h_idx[h1]]
@@ -500,14 +520,38 @@ class VariantsGenotype(object):
                     current_lh = hp * individual_genotype_likelihoods[k]
                     marginal_gnt_lh += current_lh
 
-                    # Calculate NR and NV
-                    d1 = hap_alt_var_cov_individual[var1_alt_hash] 
-                    d2 = hap_alt_var_cov_individual[var2_alt_hash] 
-                    nr += (d1 + d2) if var1_alt_hash != var2_alt_hash else d1
+                    d1 = hap_alt_var_cov_individual[var1_alt_hash]
+                    d2 = hap_alt_var_cov_individual[var2_alt_hash]
+
+                    # Calculate ND and NV 
+                    if var1_alt_hash != var2_alt_hash: 
+                        nd  += (sum(d1) + sum(d2))
+                    else: 
+                        nd  += sum(d1)
+                    
                     if var1_alt_hash != ref_hash_id:
-                        nv += d1
-                    if var1_alt_hash != var2_alt_hash and var2_alt_hash != ref_hash_id: 
-                        nv += d2
+                        nv += sum(d1)
+                    if (var1_alt_hash != var2_alt_hash and 
+                        var2_alt_hash != ref_hash_id): 
+                        nv += sum(d2)
+
+                    # Strand bias record
+                    if var1_alt_hash == ref_hash_id:
+                        ref_sb[0] += d1[0] # Forward 
+                        ref_sb[1] += d1[1] # Reverse
+                    else:
+                        var_sb[0] += d1[0]
+                        var_sb[0] += d1[1]
+
+                    if var1_alt_hash != var2_alt_hash:
+                        if var2_alt_hash == ref_hash_id:
+                            ref_sb[0] += d2[0] # Forward
+                            ref_sb[1] += d2[1] # Reverse
+                        else:
+                            var_sb[0] += d2[0]
+                            var_sb[0] += d2[1]
+                    ######## 
+                    
 
                 if alt_hash_id[j] != ref_hash_id or alt_hash_id[i] != ref_hash_id:
                     non_ref_posterior += marginal_gnt_lh
@@ -520,7 +564,7 @@ class VariantsGenotype(object):
                     # Homo Ref or Homo Varirant. Do't need to phase
                     phase_i, phase_j = i, j
                 elif alt_hash_id[j] == ref_hash_id or alt_hash_id[i] == ref_hash_id:
-                    # Het. Make sure call is phased correctly?
+                    # Hete. Make sure call is phased correctly?
                     if var1_in_hap1:
                         phase_i, phase_j = i, j
                     elif var1_in_hap2:
@@ -536,7 +580,10 @@ class VariantsGenotype(object):
                 # genotype.
                 if marginal_gnt_lh < COMDM.min_float:
                     marginal_gnt_lh = COMDM.min_float 
-                likelihoods.append([marginal_gnt_lh, phase_i, phase_j, nr, nv])
+                likelihoods.append([marginal_gnt_lh, phase_i, phase_j, 
+                                    nd, nv, 
+                                    ref_sb[0], ref_sb[1],  # Forward, Reverse 
+                                    var_sb[0], var_sb[1]]) # Forward, Reverse
 
         likelihoods        = np.array(likelihoods)
         non_ref_posterior /= likelihoods[:,0].sum()
