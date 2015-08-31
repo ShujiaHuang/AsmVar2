@@ -107,7 +107,11 @@ def alignReadToHaplotype(hap_info, bamfile, chrom, sam_idx):
                     # Just assign the read coverage to the haplotype which 
                     # got the max loglikehood
                     if alis < hap_info[i][2][mlhi].variants[j].POS < alie:
-                        hap_info[i][2][mlhi].variants[j].cov[sam_idx] += 1
+                        # Record the coverage strand specific. 0 for postive
+                        # strand and 1 for reverse stradn.
+                        k = 1 if al.is_reverse else 0
+                        hap_info[i][2][mlhi].variants[j].cov[sam_idx][k] += 1
+                        
                     #h = hap_info[i][2][mlhi]
                     #print >> sys.stderr, '[XXXX]', hash(h), sam_idx, h.variants[j].REF == h.variants[j].ALT[0], alis, alie, h.variants[j].POS, h.variants[j].cov[sam_idx] #[v.cov for v in h.variants]
 
