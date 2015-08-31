@@ -541,7 +541,7 @@ class VariantsGenotype(object):
                         ref_sb[1] += d1[1] # Reverse
                     else:
                         var_sb[0] += d1[0]
-                        var_sb[0] += d1[1]
+                        var_sb[1] += d1[1]
 
                     if var1_alt_hash != var2_alt_hash:
                         if var2_alt_hash == ref_hash_id:
@@ -549,7 +549,7 @@ class VariantsGenotype(object):
                             ref_sb[1] += d2[1] # Reverse
                         else:
                             var_sb[0] += d2[0]
-                            var_sb[0] += d2[1]
+                            var_sb[1] += d2[1]
                     ######## 
                     
 
