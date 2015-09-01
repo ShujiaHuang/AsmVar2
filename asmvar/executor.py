@@ -116,6 +116,8 @@ class VariantsGenotype(object):
         vcf_header_info.add('FORMAT', 'AB', 1, 'Float', 'Allele balance for '
                             'each het genotype')
 
+        vcf_header_info.add('INFO', 'HR', 1, 'Integer', 'Homozygous run')
+        vcf_header_info.add('INFO', 'NR', 1, 'Float', 'N ratio around varant')
         return vcf_header_info
 
     def genotyping(self):
@@ -258,7 +260,8 @@ class VariantsGenotype(object):
             vcf_data_line.alt    = [str(a) for a in v.ALT[1:]] # REF in ALT
             vcf_data_line.qual   = v.QUAL
             vcf_data_line.filter = v.FILTER
-            vcf_data_line.info   = v.INFO
+            vcf_data_line.info   = {'HR': 'HR=' + str(v.hrun), 
+                                    'NR': 'NR=' + str(v.nratio)}
             vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'ND', 'NV', 
                                                     'AB', 'SB'])
 
@@ -358,7 +361,7 @@ class VariantsGenotype(object):
         """
         hap_info  = []
         ref_fasta = self.ref_fasta.fetch(chrom)
-        for wvar in self.load_vcf_by_chrom(chrom):
+        for wvar in self.load_vcf_by_chrom(ref_fasta, chrom):
             # Gernerate a list of haplotypes by all the combination of 
             # `wvar`.
             haplotypes = gnt.generateAllHaplotypeByVariants(
@@ -397,7 +400,7 @@ class VariantsGenotype(object):
         print >> sys.stderr, ('[INFO] %s Realignment and Haplotype likelihood '
                               'calculate done. Time: %s\n' % (chrom, time.asctime()))
 
-    def load_vcf_by_chrom(self, chrom):
+    def load_vcf_by_chrom(self, chr_fa_seq, chrom):
         """
         Loading all the variant in the chromosome `chrom`
         """
@@ -413,8 +416,9 @@ class VariantsGenotype(object):
             done_load_var.add(h_id)
 
             for v in vutil.Variant(r).parse(): 
+                v.hrun   = vutil.homoRunForOneVariant(chr_fa_seq, v) # Homo run
+                v.nratio = vutil.nRatioForOneVariant(chr_fa_seq, v)
                 var_tmp_list.append(v)
-
         var_tmp_list  = sorted(var_tmp_list) # Sorted by reference pos order
         variants_list = []
 
