@@ -79,8 +79,8 @@ class Context(object):
                              ','.join(self.alt),
                              str(self.qual),
                              '.' if not self.filter else ','.join(self.filter),
-                             '.' if not self.info else ';'.join(','.join(v) 
-                                             for k, v in self.info.items()),
+                             '.' if not self.info else ';'.join(v 
+                                    for v in sorted(self.info.values())),
                              ':'.join(self.format),
                              '\t'.join(self.sample)])
 

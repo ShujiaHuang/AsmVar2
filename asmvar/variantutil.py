@@ -84,6 +84,8 @@ class Variant(object):
         r.samples = None
         r.cov     = [] # Add a new value to record the coverage
         self.record = r # vcf.model._Record type
+        self.hrun   = None # Size of homo run around the variant
+        self.nratio = None # N ratio around the variant
 
     def parse(self):
         """
@@ -265,6 +267,21 @@ def get_sequence_context(chr_fa_seq, variant, size = 10):
     start = max(0, variant.POS - size)
     return chr_fa_seq[start:variant.POS + size]
 
+def nRatioForOneVariant(chr_fa_seq, variant, size = 10):
+    """
+    Calculate the N ratio surrounding this variant's position 
+    """
+    left_ref_seq  = chr_fa_seq[max(0, variant.POS - size):max(variant.POS - 1, 0)]
+    right_ref_seq = chr_fa_seq[variant.POS:variant.POS + size]  
+    nr = 0.0
+    for v in variant.ALT:
+        seq = left_ref_seq + str(v) + right_ref_seq
+        n = seq.upper().count('N') / float(len(seq))
+        if n > nr:  # Just get the biggest n-ratio
+            nr = round(n, 3)
+
+    return nr
+
 def homoRunForOneVariant(chr_fa_seq, variant):
     """
     Calculate and return the length of the largest homopolymer
@@ -276,18 +293,21 @@ def homoRunForOneVariant(chr_fa_seq, variant):
         variant: It's a vcf.model._Record
     """
 
-    left_ref_seq  = chr_fa_seq[max(0, variant.POS - 20):variant.POS]
-    right_ref_seq = chr_fa_seq[variant.POS:variant.POS + 20]
+    left_ref_seq  = chr_fa_seq[max(0, variant.POS - 20):
+                               max(variant.POS - 1, 0)].upper()
+    right_ref_seq = chr_fa_seq[variant.POS:variant.POS + 20].upper()
     if len(left_ref_seq) == 0 or len(right_ref_seq) == 0:
         return 0
 
-    left_hrun_size  = _calHrunSize(left_ref_seq[::-1].upper())
-    right_hrun_size = _calHrunSize(right_ref_seq.upper())
+    left_hrun_size  = _calHrunSize(left_ref_seq[::-1])
+    right_hrun_size = _calHrunSize(right_ref_seq)
 
-    if left_ref_seq[-1].upper() != right_ref_seq[0].upper():
+    if left_ref_seq[-1] != right_ref_seq[0]:
         return max(left_hrun_size, right_hrun_size)
     else:
         # The left and right side sequence is the same 
+        if variant.REF[0].upper() == right_ref_seq[0]:
+            right_hrun_size += 1
         return left_hrun_size + right_hrun_size
 
 def _calHrunSize(sequence):
