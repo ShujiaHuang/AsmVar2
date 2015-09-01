@@ -615,7 +615,7 @@ class VariantsGenotype(object):
         # We sum up all the probability of genotype for each individual, 
         # and then times all the sum-probability together.
         # It's a log10 value now.
-        sum_log10_prob = np.log10(prob_mat.sum(axis = 0)).sum()
+        sum_log10_prob = max(-300, np.log10(prob_mat.sum(axis = 0)).sum())
 
         var2posterior_phred = {}
         for hap in haplotypes:
