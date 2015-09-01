@@ -258,8 +258,9 @@ class VariantsGenotype(object):
             vcf_data_line.Id     = v.ID
             vcf_data_line.ref    = v.REF
             vcf_data_line.alt    = [str(a) for a in v.ALT[1:]] # REF in ALT
-            vcf_data_line.qual   = v.QUAL
-            vcf_data_line.filter = v.FILTER
+            k = ':'.join([v.CHROM, str(v.POS), str(v.ALT[1])])
+            vcf_data_line.qual   = var2posterior_phred[k]
+            vcf_data_line.filter = '.'
             vcf_data_line.info   = {'HR': 'HR=' + str(v.hrun), 
                                     'NR': 'NR=' + str(v.nratio)}
             vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'ND', 'NV', 
@@ -649,7 +650,8 @@ class VariantsGenotype(object):
                 log_prob = (np.log10(ratio) + np.log10(1.0 - prior) - 
                             np.log10(prior + ratio * (1.0 - prior)))
 
-                var2posterior_phred[v] = round(-10 * log_prob)
+                k = ':'.join([v.CHROM, str(v.POS), str(v.ALT[0])])
+                var2posterior_phred[k] = int(round(-10 * log_prob))
 
         # Return a dict record the variants' posterior phred score
         return var2posterior_phred # For each variants
