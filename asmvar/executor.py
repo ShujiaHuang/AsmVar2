@@ -13,14 +13,11 @@ import time
 import copy
 import numpy as np
 
-from multiprocessing import Pool 
-
 import alignment as alg # The alignment module
-import variantutil as vutil
-import genotype as gnt
+from genotype import genotypeutils as gnt
+from utils import variantutil as vutil
 from utils import vcfutils
-
-import datum as DM  # The global common datum 
+from utils import datum as DM  # The global common datum 
 COMDM = DM.CommonDatum()
 
 class VariantCaller(object):

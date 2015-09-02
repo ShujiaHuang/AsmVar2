@@ -9,9 +9,9 @@ import numpy as np
 import pysam
 import time
 
-import common as com # Same common functions
-import datum  as DM  # The global common datum
 from read import Read
+from utils import common as com # Same common functions
+from utils import datum  as DM  # The global common datum
 
 # Defined some global values
 COMDM  = DM.CommonDatum() # DM.CommonDatum().hashmer is defualt to be 7
