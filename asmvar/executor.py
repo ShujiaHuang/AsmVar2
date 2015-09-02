@@ -18,7 +18,7 @@ from multiprocessing import Pool
 import alignment as alg # The alignment module
 import variantutil as vutil
 import genotype as gnt
-import vcfutils
+from utils import vcfutils
 
 import datum as DM  # The global common datum 
 COMDM = DM.CommonDatum()
