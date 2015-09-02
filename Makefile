@@ -5,7 +5,7 @@ all: align.so encode.so
 
 align.so:
 
-	cd $(DIR); gcc align.c -fPIC -shared -o align.so
+	cd $(DIR)/alignment; gcc align.c -fPIC -shared -o align.so
 
 encode.so:
 

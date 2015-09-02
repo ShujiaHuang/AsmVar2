@@ -13,8 +13,8 @@ import time
 import copy
 import numpy as np
 
-import alignment as alg # The alignment module
-from genotype import genotypeutils as gnt
+from alignment import pyalign as alg # The alignment module
+from genotype  import genotypeutils as gnt
 from utils import variantutil as vutil
 from utils import vcfutils
 from utils import datum as DM  # The global common datum 
@@ -33,7 +33,6 @@ class VariantCaller(object):
     def __init__(self, alignfile, targetfile, queryfile, options):
         """
         Constructor.
-
         """
         self.align_input = alignfile
         self.target_fa   = targetfile

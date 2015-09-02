@@ -10,6 +10,7 @@ import pysam
 import time
 
 from read import Read
+sys.path.append('..')
 from utils import common as com # Same common functions
 from utils import datum  as DM  # The global common datum
 
