@@ -113,7 +113,8 @@ def calcuInbreedCoeff(gt):
     p = (2.0 * ref_count + het_count) / (2.0 * n) # expected REF allele freq
     q = 1.0 - p # expected alternative allele frequency
     # Inbreeding coefficient: the het_count VS expected of het_count
-    inbf = 1.0 - (het_count / (2.0 * p * q * n))
+    expected_het_count = 2.0 * p * q * n if p * q > 0 else 1
+    inbf = 1.0 - het_count / expected_het_count
     
     return round(inbf, 2)
 
