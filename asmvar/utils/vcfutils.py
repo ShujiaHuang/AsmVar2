@@ -116,5 +116,5 @@ def calcuInbreedCoeff(gt):
     expected_het_count = 2.0 * p * q * n if p * q > 0 else 1
     inbf = 1.0 - het_count / expected_het_count
     
-    return round(inbf, 2)
+    return inbf
 
