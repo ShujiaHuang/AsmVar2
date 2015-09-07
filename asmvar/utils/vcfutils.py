@@ -85,6 +85,36 @@ class Context(object):
                              '\t'.join(self.sample)])
 
 
+def calcuInbreedCoeff(gt):
+    """
+    Calculating the inbreeding coefficient by GT fields of VCF.
 
-        
+    Args:
+        `gt`: A list. Genotype fields of all the samples.
+    """
+    ref_count, het_count, hom_count, n = 0, 0, 0, 0
+    for g in gt:
+        gs = g.split('/') if '/' in g else g.split('|')
+        if '.' not in g: n += 1
+        if '.' in g:
+            # Do nothing
+            pass
+        elif g == '0/0' or g == '0|0':
+            # Reference
+            ref_count += 1
+        elif gs[0] == gs[1]:
+            # homo
+            hom_count += 1
+        else:
+            # hete
+            het_count += 1
+
+    if n == 0: n = 1
+    p = (2.0 * ref_count + het_count) / (2.0 * n) # expected REF allele freq
+    q = 1.0 - p # expected alternative allele frequency
+    # Inbreeding coefficient: the het_count VS expected of het_count
+    expected_het_count = 2.0 * p * q * n if p * q > 0 else 1
+    inbf = 1.0 - het_count / expected_het_count
+    
+    return inbf
 

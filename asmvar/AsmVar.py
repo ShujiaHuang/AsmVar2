@@ -20,12 +20,11 @@ def checking():
 def genotype():
 
     gnt_opt = cmdopts.genotype()
+	# Calculat the variants' genotype and output
     gnt_exe = exe.VariantsGenotype(gnt_opt.vcffile, 
                                    [f.split(':') for f in loadList(gnt_opt.bamfile)], 
                                    gnt_opt.ref_fasta_file,
                                    gnt_opt)
-	# Calculat the variants' genotype and output
-    gnt_exe.genotyping()
 
 def loadList(file_name):
 

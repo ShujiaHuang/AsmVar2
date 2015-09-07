@@ -9,4 +9,4 @@ setup.py
 bin/
 build/
 docs/build/
-asmvar/Tmp/
+asmvar/trash/

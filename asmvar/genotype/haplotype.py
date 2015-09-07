@@ -1,12 +1,14 @@
 """
 This module contain classes and functions for general haplotype.
 """
+import sys
 import copy
 import logging
 
-import common as com # Same common functions
-import datum  as DM  # The global common datum
-import variantutil as vutil
+sys.path.append('..')
+from utils import common as com # Same common functions
+from utils import datum  as DM  # The global common datum
+from utils import variantutil as vutil
 
 COMDM  = DM.CommonDatum() # DM.CommonDatum().hashmer is defualt to be 7
 logger = logging.getLogger('Log')

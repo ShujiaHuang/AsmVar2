@@ -3,12 +3,10 @@ This module contains various functions and classes for handling variant
 information, including utilities for generating combinations of variants, 
 haplotypes, and genotypes.
 """
+
 import copy
 import logging
 import vcf
-
-import datum as DM  # The global common datum
-MODEL = DM.Model()
 
 logger = logging.getLogger('Log')
 ###############################################################################
