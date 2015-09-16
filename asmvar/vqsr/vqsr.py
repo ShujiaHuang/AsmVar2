@@ -61,6 +61,8 @@ def main(opt):
 
            if re.search(r'^#', line): continue
            col = line.strip('\n').split()
+           nratio = re.search(r';?NR=([^;]+)', col[7])
+           if not nratio: continue
 
            atleastone = False
            for sample in col[9:]:

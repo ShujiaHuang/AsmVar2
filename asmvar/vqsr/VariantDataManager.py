@@ -12,7 +12,6 @@ import sys
 import string
 import re
 import os
-import gzip
 
 import numpy as np
 import scipy.stats as sp_stats
@@ -187,7 +186,11 @@ def LoadDataSet(vcfInfile, traningSet):
     if len(traningSet) == 0: 
         raise ValueError('[ERROR] No Training Data found')
 
-    I = gzip.open(vcfInfile) if vcfInfile[-3:] == '.gz' else open(vcfInfile)
+    if vcfInfile[-3:] == '.gz':
+        I = os.popen('gzip -dc %s' % vcfInfile) 
+    else:
+        I = open(vcfInfile) 
+
     data, hInfo = [], vcfutils.Header()
     while 1: # VCF format
 
@@ -217,6 +220,7 @@ def LoadDataSet(vcfInfile, traningSet):
             inbCoeff = round(inbCoeff, 2)
 
             nratio = re.search(r';?NR=([^;]+)', col[7])
+            if not nratio: continue
             nratio = round(float(nratio.group(1)), 2)
 
             hom_run = re.search(r';?HR=([^;]+)', col[7])
