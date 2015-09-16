@@ -12,6 +12,8 @@ import sys
 import string
 import re
 import os
+import gzip
+
 import numpy as np
 import scipy.stats as sp_stats
 from sklearn.metrics import roc_curve
@@ -185,11 +187,7 @@ def LoadDataSet(vcfInfile, traningSet):
     if len(traningSet) == 0: 
         raise ValueError('[ERROR] No Training Data found')
 
-    if vcfInfile[-3:] == '.gz':
-        I = os.popen('gzip -dc %s' % vcfInfile)
-    else:
-        I = open(vcfInfile)
-
+    I = gzip.open(vcfInfile) if vcfInfile[-3:] == '.gz' else open(vcfInfile)
     data, hInfo = [], vcfutils.Header()
     while 1: # VCF format
 
