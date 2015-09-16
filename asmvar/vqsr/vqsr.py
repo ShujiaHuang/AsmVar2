@@ -124,20 +124,26 @@ def main(opt):
     for k, v in sorted(culprit.items(), key = lambda k:k[0]):
         print >> sys.stderr, '  ** Culprit by %s: %d\t%.2f' % (k, v, v * 100.0 / tot)
 
-if __name__ == '__main__':
-
-    usage = '\nUsage: %prog [--Train Training data set] [-i SampleVcfInfile] > Output'
+def cmdopts():
+    """
+    The command line parameters for VQSR 
+    """
+    usage = ('\nUsage: %prog vqsr [--Train Training data set] '
+             '[-i SampleVcfInfile] > Output')
     optp  = optparse.OptionParser(usage=usage)
-    optp.add_option('-i', '--InVcf' , dest='vcfInfile', metavar='VCF', help='VCF for predict.', default=[])
-    optp.add_option('-T', '--Train' , dest='trainData', metavar='TRU', help='Traing data set at true  category', default=[])
-    optp.add_option("-f", "--fig",    dest="figure",    metavar="FIG", help="The prefix of figure.",             default='figtest')
+    optp.add_option('-i', '--InVcf', dest = 'vcfInfile', metavar = 'VCF', 
+                    help = 'VCF for predict.', default = [])
+    optp.add_option('-T', '--Train', dest = 'trainData', metavar = 'TRU', 
+                    help = 'Traing data set at true  category', default = [])
+    optp.add_option("-f", "--fig", dest = "figure", metavar = "FIG", 
+                    help = "The prefix of figure.", default = 'figtest')
 
     opt, _ = optp.parse_args()
-    if len(opt.vcfInfile) == 0: optp.error("Required [-i vcfInfile]\n"            )
-    if len(opt.trainData) == 0: optp.error("Required [-T trainData. VCF Format]\n")
-    print >> sys.stderr, '[INFO] Parameters: python' , sys.argv[0], '\n\t-i', opt.vcfInfile, \
-          '\n\t-T', opt.trainData, '\n\t-f', opt.figure, '\n'
-
-    main(opt)
-    print >> sys.stderr, '*********************** ALL DONE ***********************'
+    if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
+    if len(opt.trainData) == 0: optp.error('Required[-T trainData. VCFFormat]\n')
+    print >> sys.stderr, ('[INFO] Parameters: python' , sys.argv[0], 
+                          '\n\t-i', opt.vcfInfile, 
+                          '\n\t-T', opt.trainData, 
+                          '\n\t-f', opt.figure, '\n')
+    return opt
 

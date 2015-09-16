@@ -7,6 +7,7 @@ to rule them all, in a word, it's "The Ring".
 `Asmvar.py` is "Sauron", and this module could just be called by it.
 """
 from genotype import genotyping as gnt
+from vqsr import vqsr
 
 class VariantCaller(object):
     """
@@ -59,5 +60,7 @@ class VariantRecalibration(object):
         """
         Constuctor.
         """
-        self.vcfs = None
+        # executor vqsr
+        vqsr.main(vqsr.cmdopts())
+        
 
