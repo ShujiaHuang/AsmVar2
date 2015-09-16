@@ -18,10 +18,14 @@ import VariantRecalibrator as vror
 
 def main(opt):
 
-    traningSet     = vdm.LoadTrainingSiteFromVCF(opt.trainData) # Just record the sites of training data
-    hInfo, dataSet = vdm.LoadDataSet(opt.vcfInfile, traningSet) #Identify the traning sites
-    vr             = vror.VariantRecalibrator() # init VariantRecalibrator object
-    vr.OnTraversalDone(dataSet) # Traning modul and calculate the VQ for all the dataSet
+    # Just record the sites of training data 
+    traningSet = vdm.LoadTrainingSiteFromVCF(opt.trainData)
+    # Identify the traning sites
+    hInfo, dataSet = vdm.LoadDataSet(opt.vcfInfile, traningSet)
+    # init VariantRecalibrator object 
+    vr = vror.VariantRecalibrator()
+    # Traning modul and calculate the VQ for all the dataSet 
+    vr.OnTraversalDone(dataSet)
     vr.VisualizationLodVStrainingSet(opt.figure + '.BadLodSelectInTraining')
 
     # For Record the Annnotations' values
@@ -122,9 +126,12 @@ def main(opt):
     ## Output Summary
     print >> sys.stderr, '\n[Summmary] Here is the summary information:\n'
     for k, v in sorted(good.items(), key = lambda k:k[0]): 
-        print >> sys.stderr, '  ** Variant Site score >= %d: %d\t%0.2f' % (k, v, v * 100 / tot)
+        print >> sys.stderr, ('  ** Variant Site score >= %d: %d\t%0.2f' % 
+            (k, v, v * 100 / tot))
+
     for k, v in sorted(culprit.items(), key = lambda k:k[0]):
-        print >> sys.stderr, '  ** Culprit by %s: %d\t%.2f' % (k, v, v * 100.0 / tot)
+        print >> sys.stderr, ('  ** Culprit by %s: %d\t%.2f' % 
+            (k, v, v * 100.0 / tot))
 
 def cmdopts():
     """
@@ -137,13 +144,13 @@ def cmdopts():
                     help = 'VCF for predict.', default = [])
     optp.add_option('-T', '--Train', dest = 'trainData', metavar = 'TRU', 
                     help = 'Traing data set at true  category', default = [])
-    optp.add_option("-f", "--fig", dest = "figure", metavar = "FIG", 
-                    help = "The prefix of figure.", default = 'figtest')
+    optp.add_option('-f', '--fig', dest = 'figure', metavar = 'FIG', 
+                    help = 'The prefix of figure.', default = 'figtest')
 
     opt, _ = optp.parse_args()
     if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
     if len(opt.trainData) == 0: optp.error('Required[-T trainData. VCFFormat]\n')
-    print >> sys.stderr, ('[INFO] Parameters: python' , sys.argv[0], 
+    print >> sys.stderr, ('[INFO] Parameters: python', sys.argv[0], 
                           '\n\t-i', opt.vcfInfile, 
                           '\n\t-T', opt.trainData, 
                           '\n\t-f', opt.figure, '\n')
