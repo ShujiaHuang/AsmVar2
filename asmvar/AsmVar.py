@@ -14,7 +14,6 @@ import executor as exe
 def checking():
 
     pass
-
     return
 
 def genotype():
@@ -25,6 +24,14 @@ def genotype():
                                    [f.split(':') for f in loadList(gnt_opt.bamfile)], 
                                    gnt_opt.ref_fasta_file,
                                    gnt_opt)
+
+def vqsr():
+    """
+    Variant quality score recalibration.
+    """
+    exe_vqsr = exe.VariantRecalibration()
+    # Done #
+
 
 def loadList(file_name):
 
@@ -38,16 +45,17 @@ def loadList(file_name):
 ###############################################################################
 if __name__ == '__main__':
 
-    runner = {'genotype':genotype}
+    runner = {'genotype': genotype, 
+              'vqsr': vqsr}
 
     if len(sys.argv) == 1 or (sys.argv[1] not in runner):
         print >> sys.stderr, '[Usage] python %s' % sys.argv[0]
-        print >> sys.stderr, '\tOption:\n\t\tgenotype'
+        print >> sys.stderr, '\tOption:\n\t\tgenotype\n\t\tvqsr'
         sys.exit(1)
 
     command = sys.argv[1]
     runner[command]()
     #profile.run("genotype()") # Debug
     print >> sys.stderr, '** %s ALL DONE %s **\n' % (command, time.asctime())
-    print >> sys.stderr, '**>> For the flowers bloom in the desert <<**'
+    print >> sys.stderr, '>> For the flowers bloom in the desert <<'
 

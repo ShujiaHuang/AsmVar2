@@ -128,7 +128,7 @@ def cmdopts():
     """
     The command line parameters for VQSR 
     """
-    usage = ('\nUsage: %prog [--Train Training data set] '
+    usage = ('\nUsage: %prog vqsr [--Train Training data set] '
              '[-i SampleVcfInfile] > Output')
     optp  = optparse.OptionParser(usage=usage)
     optp.add_option('-i', '--InVcf', dest = 'vcfInfile', metavar = 'VCF', 
@@ -142,9 +142,8 @@ def cmdopts():
     if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
     if len(opt.trainData) == 0: optp.error('Required[-T trainData. VCFFormat]\n')
     print >> sys.stderr, ('[INFO] Parameters: python' , sys.argv[0], 
-						  '\n\t-i', opt.vcfInfile, 
-						  '\n\t-T', opt.trainData, 
-						  '\n\t-f', opt.figure, '\n')
-
+                          '\n\t-i', opt.vcfInfile, 
+                          '\n\t-T', opt.trainData, 
+                          '\n\t-f', opt.figure, '\n')
     return opt
 
