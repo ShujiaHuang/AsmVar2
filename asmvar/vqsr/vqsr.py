@@ -93,7 +93,7 @@ def main(opt):
            culprit[annoTexts[d.worstAnnotation]] = culprit.get(
                 annoTexts[d.worstAnnotation], 0.0) + 1.0 #For summary
            d.lod = round(d.lod, 2)
-           for lod in [0, 1, 2, 3, 4]:
+           for lod in [0, 1, 2, 3, 4, 5, 10, 20, 30, 40, 50]:
                if d.lod >= lod: good[lod] = good.get(lod, 0.0) + 1.0
         
            if d.atTrainingSite: 
@@ -111,7 +111,7 @@ def main(opt):
 
            col[7] = ';'.join(sorted(vcfinfo.values()))
            if d.lod < 0: d.lod = 0 # QUAL: donot allow value below 0
-           #col[5] = str(d.lod) # QUAL field should use phred scala
+           col[5] = str(d.lod) # QUAL field should use phred scala
 
            print '\t'.join(col)
 
