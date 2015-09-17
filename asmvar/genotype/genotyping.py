@@ -12,6 +12,7 @@ import sys
 import time
 import copy
 import numpy as np
+import scipy.stats as sp_stats
 
 import genotypeutils as gntutil
 
@@ -96,6 +97,12 @@ class Genotype(object):
 
         vcf_header_info.add('INFO', 'HR', 1, 'Integer', 'Homozygous run')
         vcf_header_info.add('INFO', 'NR', 1, 'Float', 'N ratio around varant')
+        vcf_header_info.add('INFO', 'FS', 1, 'Float', 'Phred-scaled p-value '
+                            'using Fisher\'s exact test to detect strand bias')
+        vcf_header_info.add('INFO', 'InbCoeff', 1, 'Float', 'Inbreeding coeff-'
+                            'icient as estimated from the genotype likelikeli-'
+                            'hoods per-sample when compared against the '
+                            'Hardy-Weinberg expectation')
         return vcf_header_info
 
     def genotyping(self):
@@ -225,6 +232,7 @@ class Genotype(object):
                 hap_alt_var_cov[hs] = hv.cov
             hap_alt_var_hash.append(tmp_hash_id)
 
+        GTs   = []
         h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
         for v in winvar:
             # Each variant means one position and remember there's REF
@@ -239,13 +247,12 @@ class Genotype(object):
             k = ':'.join([v.CHROM, str(v.POS), str(v.ALT[1])])
             vcf_data_line.qual   = var2posterior_phred[k]
             vcf_data_line.filter = '.'
-            vcf_data_line.info   = {'HR': 'HR=' + str(v.hrun), 
-                                    'NR': 'NR=' + str(v.nratio)}
             vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'ND', 'NV', 
                                                     'AB', 'SB'])
 
             # The first value in `alt_hash` is REF's hash id
             v_alt_hash = [hash((v.CHROM, v.POS, str(a))) for a in v.ALT]
+            fs = 0 # The phred scale of strand bias's pvalue
             for i, s in self.index2sample.items(): # loop individuals
                 # 'lh' are individual likelihoods for all the genotype.
                 # 'non_ref_p': posterior of non reference call.
@@ -261,7 +268,10 @@ class Genotype(object):
                 # Get the max likelihood and the corresponding allele index
                 # We'll use alllele index to make the 'GT' in VCF
                 max_lh, ale1, ale2, ND, NV, rf, rr, vf, vr = lh[lh[:,0].argmax()]
-                ref_sb, var_sb = [int(rf), int(rr)], [int(vf), int(vr)]
+                ref_sb, var_sb   = [int(rf), int(rr)], [int(vf), int(vr)]
+                oddratio, pvalue = sp_stats.fisher_exact([ref_sb, var_sb]) # very slow!
+                fs += -10 * np.log10(pvalue) # Sum up
+
                 var_gnt_posterior  = max_lh / lh[:,0].sum()
                 phred_ref_p        = self._phred(ref_p)
                 phred_non_ref_p    = self._phred(non_ref_p)
@@ -294,7 +304,8 @@ class Genotype(object):
 
                 sb = ','.join([str(d) for d in ref_sb] + 
                               [str(d) for d in var_sb])
-                tmp = dict(GT = ''.join(str(gt) for gt in GT),
+                tmp_gt = ''.join(str(gt) for gt in GT)
+                tmp = dict(GT = tmp_gt,
                            AB = str(ab),
                            GQ = str(phred_var_gnt_posterior),
                            PL = ','.join(str(pl) for pl in PL),
@@ -303,6 +314,14 @@ class Genotype(object):
                            SB = sb)
                 sample = ':'.join(tmp[k] for k in vcf_data_line.format)
                 vcf_data_line.sample.append(sample)
+                GTs.append(tmp_gt)
+
+            # We have to calculate the ibreedCoeff if there's no one
+            inb_coeff = round(vcfutils.calcuInbreedCoeff(GTs), 2)
+            vcf_data_line.info = {'HR': 'HR=' + str(v.hrun), 
+                                  'NR': 'NR=' + str(v.nratio),
+                                  'FS': 'FS=' + str(round(fs, 2)),
+                                  'InbCoeff': 'InbCoeff=' + str(inb_coeff)}
             # Output VCF line
             vcf_data_line.print_context()
 
