@@ -9,8 +9,9 @@ import sys
 import re
 import os
 import sys
-import optparse
+import time
 import string
+import optparse
 
 # My own class
 import VariantDataManager as vdm
@@ -55,6 +56,8 @@ def main(opt):
     else:
         I = open(opt.vcfInfile)
 
+    print >> sys.stderr, '\n[INFO] Outputting ...', time.asctime()
+    n = 0
     j, monitor = 0, True
     while 1:
 
@@ -63,6 +66,9 @@ def main(opt):
 
        for line in lines:
 
+           n += 1
+           if n % 100000 == 0: 
+               print >> sys.stderr, '** Output lines %d %s' % (n, time.asctime())
            if re.search(r'^#', line): continue
            col = line.strip('\n').split()
            nratio = re.search(r';?NR=([^;]+)', col[7])
@@ -120,8 +126,8 @@ def main(opt):
            col[5] = str(d.lod) # QUAL field should use phred scala
 
            print '\t'.join(col)
-
     I.close()
+    print >> sys.stderr, '[INFO] Finish Outputting %d lines. %s' % (n, time.asctime())
 
     ## Output Summary
     print >> sys.stderr, '\n[Summmary] Here is the summary information:\n'

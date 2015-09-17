@@ -9,9 +9,10 @@ Date  : 2014-01-06 14:33:45
 
 """
 import sys
-import string
 import re
 import os
+import time
+import string
 
 import numpy as np
 import scipy.stats as sp_stats
@@ -139,23 +140,6 @@ class VariantDataManager:
 
         return lodThreshold, np.array(lodCum)
 
-def SampleFaLen(faLenFile):
-
-    if faLenFile[-3:] == '.gz': 
-        I = os.popen('gzip -dc %s' % faLenFile)
-    else: 
-        I = open(faLenFile)
-    
-    data = {}
-    while 1:
-        lines = I.readlines(100000)
-        if not lines: break
-        for line in lines:
-            col = line.strip('\n').split()
-            data[col[0]] = string.atoi(col[1])
-    I.close()
-    return data
-
 def LoadTrainingSiteFromVCF(vcffile):
     """
     Just record the training site positions
@@ -166,6 +150,8 @@ def LoadTrainingSiteFromVCF(vcffile):
     else:
         I = open(vcffile)
 
+    print >> sys.stderr, '\n[INFO] Loading Training site from VCF', time.asctime()
+    n = 0
     dataSet = set()
     while 1:
 
@@ -174,10 +160,15 @@ def LoadTrainingSiteFromVCF(vcffile):
 
         for line in lines:
 
+            n += 1
+            if n % 100000 == 0:
+                print >> sys.stderr, '** Loading lines %d %s' % (n, time.asctime())
             if re.search(r'^#', line): continue
             col = line.strip('\n').split()
             dataSet.add(col[0] + ':' + col[1])
     I.close()
+    print >> sys.stderr, '[INFO] Finish loading training set %d lines. %s' % (
+        n, time.asctime())
 
     return dataSet
 
@@ -191,6 +182,8 @@ def LoadDataSet(vcfInfile, traningSet):
     else:
         I = open(vcfInfile) 
 
+    print >> sys.stderr, '\n[INFO] Loading data set from VCF', time.asctime()
+    n = 0
     data, hInfo = [], vcfutils.Header()
     while 1: # VCF format
 
@@ -199,6 +192,9 @@ def LoadDataSet(vcfInfile, traningSet):
 
         for line in lines:
 
+            n += 1
+            if n % 100000 == 0: 
+                print >> sys.stderr, '** Loading lines %d %s' % (n, time.asctime())
             col = line.strip('\n').split()
             if re.search(r'^#CHROM', line): 
                 col2sam = {i+9:sam for i,sam in enumerate(col[9:])}
@@ -262,10 +258,11 @@ def LoadDataSet(vcfInfile, traningSet):
             datum.variantOrder = col[0] + ':' + col[1]
             if datum.variantOrder in traningSet: 
                 datum.atTrainingSite = True
-
             data.append(datum)
-
     I.close()
+
+    print >> sys.stderr, '[INFO] Finish loading data set %d lines. %s' % (
+        n, time.asctime())
 
     return hInfo, np.array(data)
 
