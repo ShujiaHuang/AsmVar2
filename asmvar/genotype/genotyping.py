@@ -268,6 +268,12 @@ class Genotype(object):
                 # Get the max likelihood and the corresponding allele index
                 # We'll use alllele index to make the 'GT' in VCF
                 max_lh, ale1, ale2, ND, NV, rf, rr, vf, vr = lh[lh[:,0].argmax()]
+
+                ################################################## 
+                # Fisher exact test:                             # 
+                #              [ref-fwd,     ref-reverse],       #
+                #              [non-ref-fwd, non-ref-reverse]    #
+                ##################################################
                 ref_sb, var_sb   = [int(rf), int(rr)], [int(vf), int(vr)]
                 oddratio, pvalue = sp_stats.fisher_exact([ref_sb, var_sb]) # very slow!
                 fs += -10 * np.log10(pvalue) # Sum up
