@@ -71,8 +71,11 @@ def main(opt):
                print >> sys.stderr, '** Output lines %d %s' % (n, time.asctime())
            if re.search(r'^#', line): continue
            col = line.strip('\n').split()
-           nratio = re.search(r';?NR=([^;]+)', col[7])
-           if not nratio: continue
+
+           nratio  = re.search(r';?NR=([^;]+)', col[7])
+           hom_run = re.search(r';?HR=([^;]+)', col[7])
+           fs      = re.search(r';?FS=([^;]+)', col[7]) 
+           if not nratio or not hom_run or not fs: continue
 
            atleastone = False
            for sample in col[9:]:
@@ -80,7 +83,6 @@ def main(opt):
                if field[0] == './.': continue
                atleastone = True
                break
-
            if not atleastone: continue
            
            order = col[0] + ':' + col[1]
@@ -124,9 +126,9 @@ def main(opt):
            col[7] = ';'.join(sorted(vcfinfo.values()))
            if d.lod < 0: d.lod = 0 # QUAL: donot allow value below 0
            col[5] = str(d.lod) # QUAL field should use phred scala
-
            print '\t'.join(col)
     I.close()
+
     print >> sys.stderr, '[INFO] Finish Outputting %d lines. %s' % (n, time.asctime())
 
     ## Output Summary

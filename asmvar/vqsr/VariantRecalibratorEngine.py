@@ -52,9 +52,10 @@ class VariantRecalibratorEngine:
             raise ValueError ('[ERROR] maxGaussians must be a positive integer '
                               'but found: %d' % maxGaussians)
         gmms = [mixture.GMM(n_components = n + 1, covariance_type = 'full', 
-                            tol = self.MIN_PROB_CONVERGENCE, 
+                            tol    = self.MIN_PROB_CONVERGENCE, 
                             n_iter = self.VRAC.NITER, 
-                            n_init = self.VRAC.NINIT, params = 'wmc', 
+                            n_init = self.VRAC.NINIT, 
+                            params = 'wmc', 
                             init_params = 'wmc') for n in range(maxGaussians)]
         trainingData = np.array([d.annotations for d in data])
 
