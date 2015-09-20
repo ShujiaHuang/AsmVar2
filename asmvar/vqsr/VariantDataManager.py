@@ -40,7 +40,7 @@ class VariantDataManager:
                                ['FS', 'Float', 'Phred-scaled p-value using '
                                 'Fisher\'s exact test to detect strand bias']]
 
-        self.data = [] # list < VariantDatum >
+        self.data = [] # list <VariantDatum>
         if data: # data is not None
             if not isinstance(data[0],vd.VariantDatum): 
                 raise ValueError('[ERROR] The data type should be '
@@ -166,6 +166,7 @@ def LoadTrainingSiteFromVCF(vcffile):
             if re.search(r'^#', line): continue
             col = line.strip('\n').split()
             dataSet.add(col[0] + ':' + col[1])
+
     I.close()
     print >> sys.stderr, '[INFO] Finish loading training set %d lines. %s' % (
         n, time.asctime())
@@ -193,8 +194,9 @@ def LoadDataSet(vcfInfile, traningSet):
         for line in lines:
 
             n += 1
-            if n % 100000 == 0: 
+            if n % 100 == 0: 
                 print >> sys.stderr, '** Loading lines %d %s' % (n, time.asctime())
+
             col = line.strip('\n').split()
             if re.search(r'^#CHROM', line): 
                 col2sam = {i+9:sam for i,sam in enumerate(col[9:])}
@@ -215,41 +217,22 @@ def LoadDataSet(vcfInfile, traningSet):
                 inbCoeff = float(inbCoeff.group(1))
             inbCoeff = round(inbCoeff, 2)
 
-            nratio = re.search(r';?NR=([^;]+)', col[7])
-            if not nratio: continue
-            nratio = round(float(nratio.group(1)), 2)
-
+            nratio  = re.search(r';?NR=([^;]+)', col[7])
             hom_run = re.search(r';?HR=([^;]+)', col[7])
+            fs      = re.search(r';?FS=([^;]+)', col[7]) 
+            if not nratio or not hom_run or not fs: continue
+
+            nratio  = round(float(nratio.group(1)), 2)
             hom_run = round(float(hom_run.group(1)), 2)
+            fs      = round(float(fs.group(1)), 2)
 
-            fmat = {k:i for i, k in enumerate(col[8].split(':'))} # Get Format
-            for tag in ['SB']:
-                if tag not in fmat: raise ValueError('[ERROR] The "Format" '
-                                                     'fields did not contian '
-                                                     '"%s" in VCF: %s\nAT: %s\n' 
-                                                     %(tag, vcfInfile, line))
-
-            fs = 0 # The phred scale of strand bias's pvalue
             atleastone = False
             for sample in col[9:]: 
 
                 field = sample.split(':')
                 if field[0] == './.': continue
                 atleastone = True
-
-                sb = [int(d) for d in field[fmat['SB']].split(',')]
-                if len(sb) != 4: 
-                    raise ValueError('[ERROR] "SB" must just get 4 '
-                                     'elements.\n')
-                ##################################################
-                # Fisher exact test:                             #
-                #              [ref-fwd,     ref-reverse],       #
-                #              [non-ref-fwd, non-ref-reverse]    #
-                ##################################################
-                _, pvalue = sp_stats.fisher_exact([[sb[0], sb[1]], 
-                                                   [sb[2], sb[3]]])
-                fs += -10 * np.log10(pvalue) # Sum up
-
+                break
             if not atleastone: continue 
 
             datum = vd.VariantDatum()
