@@ -80,6 +80,7 @@ class VariantRecalibrator:
         #            marker='.', linewidth = 0, alpha = 0.5)
         plt.plot([self.badLodCutoff, self.badLodCutoff], [0,1], 'g--')
         plt.ylim(0, 1.0)
+        plt.xlim(-10, 10)
         plt.xlabel('Variant score threshold for the bad model', fontsize = 16)
         plt.ylabel('Rate of Positive->Negative', fontsize = 16)
 
