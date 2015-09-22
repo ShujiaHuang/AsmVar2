@@ -173,7 +173,14 @@ def LoadTrainingSiteFromVCF(vcffile):
 
     return dataSet
 
-def LoadDataSet(vcfInfile, traningSet):
+def LoadDataSet(vcfInfile, traningSet, pedFile = None):
+    """
+    Args:
+        'pedFile': The .PED file
+    """
+    # Return a dict: [sample-id] => [parent1, parent2]
+    # if pedFile is None, return {}
+    pedigree = vcfutils.loadPedigree(pedFile)
 
     if len(traningSet) == 0: 
         raise ValueError('[ERROR] No Training Data found')
@@ -185,6 +192,8 @@ def LoadDataSet(vcfInfile, traningSet):
 
     print >> sys.stderr, '\n[INFO] Loading data set from VCF', time.asctime()
     n = 0
+    sam2col = {}
+    ind_ind_idx = None # The index of independent individual
     data, hInfo = [], vcfutils.Header()
     while 1: # VCF format
 
@@ -199,8 +208,18 @@ def LoadDataSet(vcfInfile, traningSet):
 
             col = line.strip('\n').split()
             if re.search(r'^#CHROM', line): 
-                col2sam = {i+9:sam for i,sam in enumerate(col[9:])}
+                sam2col = {sam : i + 9 for i, sam in enumerate(col[9:])}
+                if pedigree:
+                    ind_ind_idx = set()
+                    for k, v in pedigree.items():
+                        if (k not in sam2col or v[0] in sam2col or 
+                            v[1] in sam2col): continue
+                        ind_ind_idx.add(sam2col[k])
 
+                    ind_ind_idx = sorted(list(ind_ind_idx))
+                else:
+                    ind_ind_idx = range(9, len(col))
+ 
             # Record the header information
             if re.search(r'^#', line):
                 hInfo.record(line.strip('\n'))
@@ -209,10 +228,11 @@ def LoadDataSet(vcfInfile, traningSet):
             # Get inbreeding coefficient. If fail then recalculating.
             # It's calculated like: 1.0 - hetCount/Expected_hetCount in VCF
             inbCoeff = re.search(r';?InbCoeff=([^;]+)', col[7])
-            if not inbCoeff:
-                # We have to calculate the ibreedCoeff if there's no one
-                inbCoeff = vcfutils.calcuInbreedCoeff([c.split(':')[0] 
-                                                       for c in col[9:]])
+            if pedigree or not inbCoeff:
+                # We have to calculate the ibreedCoeff if there's no one 
+                # or we input the pedigree file
+                inbCoeff = vcfutils.calcuInbreedCoeff([col[c].split(':')[0] 
+                                                       for c in ind_ind_idx])
             else:
                 inbCoeff = float(inbCoeff.group(1))
             inbCoeff = round(inbCoeff, 2)
