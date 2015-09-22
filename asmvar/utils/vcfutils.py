@@ -132,7 +132,7 @@ def loadPedigree(pedigree_file):
                              may have the duplication sample name.' % col[1])
         pedigree[col[1]] = [col[2], col[3]]
 
-    return pedigree:w
+    return pedigree
 
 
 
