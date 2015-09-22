@@ -22,7 +22,7 @@ def main(opt):
     # Just record the sites of training data 
     traningSet = vdm.LoadTrainingSiteFromVCF(opt.trainData)
     # Identify the traning sites
-    hInfo, dataSet = vdm.LoadDataSet(opt.vcfInfile, traningSet)
+    hInfo, dataSet = vdm.LoadDataSet(opt.vcfInfile, traningSet, opt.pedfile)
     # init VariantRecalibrator object 
     vr = vror.VariantRecalibrator()
     # Traning modul and calculate the VQ for all the dataSet 
@@ -154,6 +154,8 @@ def cmdopts():
                     help = 'Traing data set at true  category', default = [])
     optp.add_option('-f', '--fig', dest = 'figure', metavar = 'FIG', 
                     help = 'The prefix of figure.', default = 'figtest')
+    optp.add_option('-p', '--ped', dest = 'pedfile', 
+                    help = 'pedigree information file', default = '')
 
     opt, _ = optp.parse_args()
     if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
