@@ -128,8 +128,8 @@ def loadPedigree(pedigree_file):
         # 1006 1006-05 1006-01 1006-02 0 0
         col = line.strip('\n').split()
         if col[1] in pedigree:
-            raise ValueError('[ERROR] %s is already in "pedigree". Your file 
-                             may have the duplication sample name.' % col[1])
+            raise ValueError('[ERROR] %s is already in "pedigree". Your file ' 
+                             'may have the duplication sample name.' % col[1])
         pedigree[col[1]] = [col[2], col[3]]
 
     return pedigree
