@@ -59,6 +59,17 @@ class Genotype(object):
 
         # Set vcf header
         self.vcf_header_info = self._set_vcf_header()
+        if self.opt.pedfile:
+            sample2index = {k:v[0] for k, v in self.sample2bamfile.items()}
+            pedigree = vcfutils.loadPedigree(self.opt.pedfile)
+            ind_ind_idx = set() # independent individual index
+            for k, v in pedigree.items():
+                if (k not in sample2index or v[0] in sample2index or
+                    v[1] in sample2index): continue
+                ind_ind_idx.add(sample2index[k])
+            self.ind_ind_idx = sorted(list(ind_ind_idx))
+        else:
+            self.ind_ind_idx = range(self.samplenumber)
 
     def _set_vcf_header(self):
         """
@@ -156,10 +167,6 @@ class Genotype(object):
         #                         genotypes. [hap1_hash_id, hap2_hash_id]. 
         #                         So 'genotype_hap_hash_id' is the same size
         #                         and order with genotype_likelihoods's colum
-        # `sample_map_nread`: It's used for recording the count of mapped
-        #                     reads of this sample. And it's 1-d array 
-        #                     [sample], the sample order is the same with
-        #                     the sample of `genotype_likelihoods`
         # See!! We don't have to reture the 'genotype' value, we just need
         # 'genotype_hap_hash_id' and 'haplotypes' , then we could get back
         # all the genotype easily! 
@@ -323,7 +330,9 @@ class Genotype(object):
                 GTs.append(tmp_gt)
 
             # We have to calculate the ibreedCoeff if there's no one
-            inb_coeff = round(vcfutils.calcuInbreedCoeff(GTs), 2)
+            inb_coeff = round(vcfutils.calcuInbreedCoeff(
+                [GTs[c] for c in self.ind_ind_idx]), 2)
+
             vcf_data_line.info = {'HR': 'HR=' + str(v.hrun), 
                                   'NR': 'NR=' + str(v.nratio),
                                   'FS': 'FS=' + str(round(fs, 2)),

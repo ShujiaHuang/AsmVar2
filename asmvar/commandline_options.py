@@ -37,6 +37,8 @@ def genotype():
                     metavar = 'int',
                     help = 'Minimum allowed value for somatic variant posterior', 
                     default = 5) 
+    optp.add_option('-p', '--ped', dest='pedfile', 
+					help = 'pedigree information file', default = '')
 
     opt, _ = optp.parse_args()
     if not opt.vcffile: optp.error('Required [-v list of vcffile]\n')
