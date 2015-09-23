@@ -158,7 +158,8 @@ def cmdopts():
     optp.add_option('-f', '--fig', dest = 'figure', metavar = 'FIG', 
                     help = 'The prefix of figure.', default = 'figtest')
     optp.add_option('-p', '--ped', dest = 'pedfile', 
-                    help = 'pedigree information file', default = '')
+                    help = 'pedigree information file. Not necessary.', 
+					default = '')
 
     opt, _ = optp.parse_args()
     if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
