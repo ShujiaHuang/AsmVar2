@@ -124,7 +124,7 @@ def main(opt):
                                      str('%.2f' % d.raw_annotations[idx[text]]))
            if opt.pedfile and 'InbCoeff' in annoTexts:
                # It's update the inbreeding coefficient
-               vcfinfo['InbCoeff'] = 'InbCoeff=%.2f' % d.raw_annotations[idx[text]]
+               vcfinfo['InbCoeff'] = 'InbCoeff=%.2f' % d.raw_annotations[idx['InbCoeff']]
 
            col[7] = ';'.join(sorted(vcfinfo.values()))
            if d.lod < 0: d.lod = 0 # QUAL: donot allow value below 0
@@ -158,7 +158,8 @@ def cmdopts():
     optp.add_option('-f', '--fig', dest = 'figure', metavar = 'FIG', 
                     help = 'The prefix of figure.', default = 'figtest')
     optp.add_option('-p', '--ped', dest = 'pedfile', 
-                    help = 'pedigree information file', default = '')
+                    help = 'pedigree information file. Not necessary.', 
+					default = '')
 
     opt, _ = optp.parse_args()
     if len(opt.vcfInfile) == 0: optp.error('Required[-i vcfInfile]\n')
