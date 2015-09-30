@@ -89,7 +89,9 @@ def get_add_record(vcffile, add_format_field_set):
             add_format_record[k] = []
             for i, sam in enumerate(col[9:]):
                 format = sam.split(':')
-                t = {f:format[fmat[f]] for f in add_format_field_set if f in fmat}
+                t = {}
+                for f in (add_format_field_set & set(fmat.keys())):
+                    t[f] = format[fmat[f]] if len(format) > fmat[f] else '.'
                 add_format_record[k].append(t)
 
     I.close()
