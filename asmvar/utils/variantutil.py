@@ -147,13 +147,14 @@ class Variant(object):
                 varset.add(record)
 
         # Sorted by reference pos order  
-        varlist = self._dedup(sorted(list(varset))) 
+        varlist = self.__dedup(sorted(list(varset))) 
 
         # It's a list of '_Record' which type is defined by 'PyVCF'
         return varlist
 
-    def _dedup(self, varlist):
+    def __dedup(self, varlist):
         """
+        Private member function.
         Delete conflict variants at the same position.  
 
         And keep the small one
@@ -323,10 +324,9 @@ def _calHrunSize(sequence):
             hr += 1
         else:
             break
-    # The hr == 1 means there's not a homopolymer run
-    if hr == 1: hr = 0
 
-    return hr
+    # The hr == 1 means there's not a homopolymer run
+    return hr if hr > 1 else 0
 ###############################################################################
 
 
