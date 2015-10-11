@@ -74,7 +74,9 @@ class Variant(object):
                 # This format now change to be a dict
                 t_dict = {}
                 for j in ft_idx:
-                    t_dict[fmt[j]] = sample.data[j] if len(sample.data) > j else '.'
+                    # Sample.data[j] will be None if the field not in this 
+                    # sample's FORMAT field.
+                    t_dict[fmt[j]] = sample.data[j] if sample.data[j] is not None else '.'
                 samples[sample.sample] = t_dict
 
             r.samples = samples
