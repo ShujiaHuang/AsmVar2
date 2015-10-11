@@ -66,11 +66,17 @@ class Variant(object):
         r.INFO = None
         fmt    = r.FORMAT.split(':')
         ft_idx = [i for i, f in enumerate(fmt) if f in sf]
+
         if fmt: 
+
             samples = {}
             for i, sample in enumerate(r.samples):
                 # This format now change to be a dict
-                samples[sample.sample] = {fmt[j]:sample.data[j] for j in ft_idx}
+                t_dict = {}
+                for j in ft_idx:
+                    t_dict[fmt[j]] = sample.data[j] if len(sample.data) > j else '.'
+                samples[sample.sample] = t_dict
+
             r.samples = samples
         else:
             r.samples = None
