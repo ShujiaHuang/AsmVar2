@@ -27,6 +27,7 @@ class VariantCaller(object):
         self.target_fa   = targetfile
         self.query_fa    = queryfile
         self.opt         = options
+    pass
 
 
 class VariantsGenotype(object):

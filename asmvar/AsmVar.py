@@ -12,9 +12,7 @@ import commandline_options as cmdopts
 import executor as exe
 
 def checking():
-
     pass
-    return
 
 def genotype():
 

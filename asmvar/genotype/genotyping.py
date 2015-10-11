@@ -56,6 +56,9 @@ class Genotype(object):
         self.index2sample = {v[0]: k for k, v in self.sample2bamfile.items()}
         self.samplenumber = len(self.index2sample)
         self.opt          = options
+        if self.opt.exfmt:
+            # Format should just be like: 'AA:AC:DP'
+            self.opt.exfmt = set(self.opt.exfmt.split(':'))
 
         # Set vcf header
         self.vcf_header_info = self._set_vcf_header()
@@ -114,6 +117,18 @@ class Genotype(object):
                             'icient as estimated from the genotype likelikeli-'
                             'hoods per-sample when compared against the '
                             'Hardy-Weinberg expectation')
+        # Add extra FORMAT information from original VCF file if self.opt.exfmt
+        # is not empty.
+        for f in self.opt.exfmt: 
+            if f not in self.vcfs.vcf_reader.formats: continue
+            # The element format in self.vcfs.vcf_reader.formats is: 
+            # Format(id='GT', num=1, type='String', desc='Genotype')
+            vcf_header_info.add('FORMAT', 
+                                self.vcfs.vcf_reader.formats[f].id, 
+                                self.vcfs.vcf_reader.formats[f].num,
+                                self.vcfs.vcf_reader.formats[f].type,
+                                self.vcfs.vcf_reader.formats[f].desc)
+
         return vcf_header_info
 
     def genotyping(self):
@@ -241,9 +256,14 @@ class Genotype(object):
 
         GTs   = []
         h_idx = {hash(h):i for i, h in enumerate(haplotypes)}
+        required_fmt = ['GQ', 'PL', 'ND', 'NV', 'AB', 'SB']
         for v in winvar:
             # Each variant means one position and remember there's REF
             # in v.ALT and REF is the first element.
+
+            extra_fmt  = set([k for s in v.samples.values() for k in s.keys()])
+            extra_fmt -= set(required_fmt) # Delete if already in 'required_fmt'
+            extra_fmt -= set('GT') # Delete 'GT' if contian it
 
             vcf_data_line        = vcfutils.Context()
             vcf_data_line.chrom  = v.CHROM
@@ -254,9 +274,10 @@ class Genotype(object):
             k = ':'.join([v.CHROM, str(v.POS), str(v.ALT[1])])
             vcf_data_line.qual   = var2posterior_phred[k]
             vcf_data_line.filter = '.'
-            vcf_data_line.format = ['GT'] + sorted(['GQ', 'PL', 'ND', 'NV', 
-                                                    'AB', 'SB'])
+            vcf_data_line.format = ['GT'] + sorted(required_fmt + 
+                                                   list(extra_fmt))
 
+            final_fmt_set = set()
             # The first value in `alt_hash` is REF's hash id
             v_alt_hash = [hash((v.CHROM, v.POS, str(a))) for a in v.ALT]
             fs = 0 # The phred scale of strand bias's pvalue
@@ -325,6 +346,13 @@ class Genotype(object):
                            ND = str(int(ND)),
                            NV = str(int(NV)),
                            SB = sb)
+
+                for k in extra_fmt:
+                    if isinstance(v.samples[s][k], list):
+                        tmp[k] = ','.join(str(e) for e in v.samples[s][k])
+                    else:
+                        tmp[k] = str(v.samples[s][k])
+
                 sample = ':'.join(tmp[k] for k in vcf_data_line.format)
                 vcf_data_line.sample.append(sample)
                 GTs.append(tmp_gt)
@@ -428,10 +456,11 @@ class Genotype(object):
             if (r.ALT[0] is None) or (h_id in done_load_var): continue
             done_load_var.add(h_id)
 
-            for v in vutil.Variant(r).parse(): 
+            for v in vutil.Variant(r, self.opt.exfmt).parse(): 
                 v.hrun   = vutil.homoRunForOneVariant(chr_fa_seq, v) # Homo run
                 v.nratio = vutil.nRatioForOneVariant(chr_fa_seq, v)
                 var_tmp_list.append(v)
+
         var_tmp_list  = sorted(var_tmp_list) # Sorted by reference pos order
         variants_list = []
 
@@ -440,6 +469,7 @@ class Genotype(object):
 
         print >> sys.stderr, '[INFO] Finish loading the variants of %s %s' % ( 
             chrom, time.asctime())
+
         # A list of dict, and the format for each element is: 
         # dict(chrom = chrom, start = start, end = end, variant = [var])
         return variants_list

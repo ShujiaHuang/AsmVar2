@@ -33,13 +33,16 @@ def genotype():
     optp.add_option('-s', '--read_len', dest='max_read_len', metavar='int',
                     help = 'Max length of reads', default=100)
 
-    optp.add_option('-m', '--min_posterior', dest='min_posterior', 
-                    metavar = 'int',
+    optp.add_option('-m', '--min_posterior', dest='min_posterior', metavar = 'int',
                     help = 'Minimum allowed value for somatic variant posterior', 
                     default = 5) 
-    optp.add_option('-p', '--ped', dest='pedfile', 
+    optp.add_option('-p', '--ped', dest='pedfile', metavar = 'STR', 
 					help = 'pedigree information file. Not necessary.', 
                     default = '')
+    optp.add_option('-f', '--fmt', dest='exfmt', metavar = 'STR',
+					help = 'Add extra FORMAT fields from original VCF file. '
+                           'And the parameter format could just be "AA:AC" '
+                           'if you need it.', default = '')
 
     opt, _ = optp.parse_args()
     if not opt.vcffile: optp.error('Required [-v list of vcffile]\n')
