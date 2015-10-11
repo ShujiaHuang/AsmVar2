@@ -40,6 +40,10 @@ def genotype():
     optp.add_option('-p', '--ped', dest='pedfile', 
 					help = 'pedigree information file. Not necessary.', 
                     default = '')
+    optp.add_option('-f', '--fmt', dest='exfmt', 
+					help = 'Add extra FORMAT fields from original VCF file. '
+                           'And the parameter format could just be "AA:AC" '
+                           'if you need it.', default = '')
 
     opt, _ = optp.parse_args()
     if not opt.vcffile: optp.error('Required [-v list of vcffile]\n')
