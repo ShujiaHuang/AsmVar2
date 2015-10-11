@@ -20,12 +20,11 @@ class Header(object):
     def add(self, mark, id, num, type, description):
         key = '##%s=<ID=%s' % (mark, id)
         val = ('##%s=<ID=%s,Number=%s,Type=%s,Description="%s">' % 
-              (mark, id, num, type, description))
+              (mark, id, num if num is not None else '.', type, description))
         self.header[key] = val
         return self
 
     def record(self, headline):
-
         if   re.search (r'^##fileformat', headline): tag = '###'
         elif re.search (r'^#CHROM'      , headline): tag = '#CHROM'
         else: tag = headline.split(',')[0]
