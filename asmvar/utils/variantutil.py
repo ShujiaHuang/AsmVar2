@@ -52,35 +52,30 @@ class Variant(object):
     """
     A class to record VCF variants
     """
-    def __init__(self, r):
+    def __init__(self, r, sf = ''):
         """
         Generator funtion. Yields variants in order of genomic coordinate.
 
-        fetch variants in a region using 0-based indexing.
-        
-        The region is specified by :term:`chrom`, *start* and *end*.
-
-        fetch returns an empty string if the region is out of range or
-        addresses an unknown *chrom*.
-
-        If *chrom* is given and *start* is None, the sequence from the
-        first base is returned. Similarly, if *end* is None, the sequence
-        until the last base is returned.
-
         Args:
-            `done_load_var`: A set for recording all the have loaded variants
-                             The reason that why I have to use this parameters,
-                             it's we may load some variants multiple times if 
-                             the variants' region is so big, and the start-end
-                             region can not hold them all! The parameter is 
-                             'set()' type in python, and I use it to ignore the
-                             loaded variants!
+            `r`: vcf.model._Record type
+            `sf`: Format set(): set('NR', 'AR'). Record extra format from 
+                  original VCF file. Defualt: no extra recording.
+                  
         """
         # ignore the information that we don't care
-        r.INFO    = None
-        r.FORMAT  = None
-        r.samples = None
-        r.cov     = [] # Add a new value to record the coverage
+        r.INFO = None
+        fmt    = r.FORMAT.split(':')
+        ft_idx = [i for i, f in enumerate(fmt) if f in sf]
+        if fmt: 
+            samples = {}
+            for i, sample in enumerate(r.samples):
+                # This format now change to be a dict
+                samples[sample.sample] = {fmt[j]:sample.data[j] for j in ft_idx}
+            r.samples = samples
+        else:
+            r.samples = None
+
+        r.cov = [] # record coverage
         self.record = r # vcf.model._Record type
         self.hrun   = None # Size of homo run around the variant
         self.nratio = None # N ratio around the variant
@@ -325,8 +320,9 @@ def _calHrunSize(sequence):
         else:
             break
 
-    # The hr == 1 means there's not a homopolymer run
+    # if hr == 1 means there's not a homopolymer run
     return hr if hr > 1 else 0
+
 ###############################################################################
 
 
