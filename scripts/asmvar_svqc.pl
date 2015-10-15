@@ -139,8 +139,8 @@ sub Output {
         print join "\t", @col; print "\n";
 
         # Record information for summary output
-        # Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
-        #        $svtype, $format{QR}, @col[9..$#col]) if $col[6] eq 'PASS';
+        Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
+                $svtype, $format{QR}, @col[9..$#col]) if $col[6] eq 'PASS';
     }
 
     my $rf = sprintf "%.3f", $false/$total;
@@ -157,7 +157,7 @@ sub Output {
     print STDERR "** DUPLIC variants : $duplic ($rd)\n\n";
 
     # Ignore summary.
-    #OutputSummary(\%allsvtype, \%summary);
+    OutputSummary(\%allsvtype, \%summary);
     return;
 }
 
