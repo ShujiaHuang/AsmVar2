@@ -144,11 +144,6 @@ sub SV_DuplicDist {
 sub SV_SummaryReport {
 
 # Calculate the SV number and SV size distribution
-    use File::Basename qw/dirname/;
-    use lib dirname($0)."/../lib";
-    use AsmvarVCFtools;
-    use AsmvarCommon;
-
     my ($vcffile, $isgatkvcf);
     my $filter = 'ALL';
     GetOptions(
