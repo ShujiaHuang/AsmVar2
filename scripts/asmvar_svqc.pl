@@ -52,7 +52,7 @@ sub Output {
             next;
         } elsif (/^#CHROM/) {
             print "##INFO=<ID=SPN,Number=1,Type=Integer,Description=\"The count of assambly which support this variant region\">\n";
-            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. This is the final type instead of 'VT' in FORMAT field.\">\n";
+            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. 'VT' in FORMAT field will been replaced by this if 'VT' is indel.\">\n";
             print; 
             chomp;
             my @t = split;
@@ -93,6 +93,12 @@ sub Output {
             $svtype = 'INS';
         } elsif ($svtype eq 'INDEL' and $altlen == 1) {
             $svtype = 'DEL';
+        }
+
+        for (my $i = 9; $i < @col; ++$i) { # Updata sample 'VT' and 'VS'
+            my @sam = split /:/, $col[$i];
+            $sam[$format{VS}] = $svsize; 
+            $sam[$format{VT}] = $svtype if $sam[$format{VT}] =~ m/INS|DEL/;
         }
 
         $col[7] =~ s/;SPN=[^;]+//g;
