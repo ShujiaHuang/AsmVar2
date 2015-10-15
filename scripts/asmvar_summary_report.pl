@@ -287,12 +287,22 @@ sub _SummarySV {
                     $seq[$ai]); # Alt-sequence
         } else {
             
-            next if $vsIndex >= @f or $vtIndex >= @f;
-            ($svtype, $svsize) = AsmvarVCFtools::GetSVtypeAndSizeForSample(
-                  $seq[0],     # Ref-sequence
-                  $seq[$ai],   # Alt-sequence
-                  $f[$vsIndex],# Init svsize 
-                  (split /#/, $f[$vtIndex])[0]); # Split '#',in case of 'TRANS'
+            if (@f > $vsIndex and @f > $vtIndex) {
+                ($svtype, $svsize) = AsmvarVCFtools::GetSVtypeAndSizeForSample(
+                    $seq[0],     # Ref-sequence
+                    $seq[$ai],   # Alt-sequence
+                    $f[$vsIndex],# Init svsize 
+                    (split /#/, $f[$vtIndex])[0]); # Split '#',in case of 'TRANS'
+            } else {
+                # Have no 'VT' and 'VS' in this sample. So we use the popsvtype.
+                my $tmp_size = abs(length($seq[$ai]) - length($seq[0]));
+                $tmp_size = length($seq[$ai]) if $tmp_size == 0;
+                ($svtype, $svsize) = AsmvarVCFtools::GetSVtypeAndSizeForSample(
+                    $seq[0],     # Ref-sequence
+                    $seq[$ai],   # Alt-sequence
+                    $tmp_size,   # svsize
+                    (split /,/, $popsvtype)[0]); # Split '#',in case of 'TRANS'
+            }
         }
  
         $svtype = 'TRANS' if $popsvtype =~ m/TRANS/;
