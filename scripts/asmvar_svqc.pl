@@ -48,7 +48,7 @@ sub Output {
             print;
             print "##FILTER=<ID=DUPLIC,Description=\"Duplication variants. Don't need to keep them!\">\n";
             print "##FILTER=<ID=FALSE,Description=\"unconfident variant\">\n";
-            print "##FILTER=<ID=q$qualityThd,Description=\"Variant quality below $qualityThd\">\n";
+            print "##FILTER=<ID=q$qualityThd,Description=\"Variant quality <= $qualityThd\">\n";
             next;
         } elsif (/^#CHROM/) {
             print "##INFO=<ID=SPN,Number=1,Type=Integer,Description=\"The count of assambly which support this variant region\">\n";
@@ -109,14 +109,14 @@ sub Output {
         my $dup = 0;
         if ($mark == -1) {
             $col[6] = 'FALSE';
-        } elsif ($mark == -2 and $vq >= $qualityThd) {
+        } elsif ($mark == -2 and $vq > $qualityThd) {
             $col[6] = ($col[6] eq '.' || $col[6] eq 'PASS') ? 
                 'DUPLIC': 'DUPLIC;'.$col[6];
             ++$duplic;
-        } elsif ($mark == 1 and $vq >= $qualityThd) {
+        } elsif ($mark == 1 and $vq > $qualityThd) {
 
             $col[6] = 'PASS';
-        } elsif ($vq >= $qualityThd) {
+        } elsif ($vq > $qualityThd) {
 
             $col[6] = 'PASS';
         } else {
