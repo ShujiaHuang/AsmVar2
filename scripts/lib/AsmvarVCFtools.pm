@@ -67,23 +67,23 @@ sub GetSVtypeAndSizeForSample {
     my ($svtype, $svsize);
     # The front number of svtype is used for sorting the output order
     if ($initSVtype =~ /INV/) { # Inversion
-        ($svtype, $svsize) = ("5.INV", $initSVsize);
+        ($svtype, $svsize) = ("INV", $initSVsize);
     } elsif ($initSVtype =~ /TRANS/) { # Translocation
-        ($svtype, $svsize) = ("6.TRANS", $initSVsize);
+        ($svtype, $svsize) = ("TRANS", $initSVsize);
     } elsif ($initSVtype eq 'COMPLEX' or $initSVtype eq 'REPLACEMENT') {
-        ($svtype, $svsize) = ("7.REPLACEMENT", $initSVsize);
+        ($svtype, $svsize) = ("REPLACEMENT", $initSVsize);
     } elsif ($initSVtype eq 'MNP') {
-        ($svtype, $svsize) = ("3.MNP", $initSVsize);
+        ($svtype, $svsize) = ("MNP", $initSVsize);
     } elsif ($size > 0) { # Insertion
-        ($svtype, $svsize) = ("1.INS", abs($size));
+        ($svtype, $svsize) = ("INS", abs($size));
     } elsif ($size < 0) { # Deletion
-        ($svtype, $svsize) = ("2.DEL", abs($size));
+        ($svtype, $svsize) = ("DEL", abs($size));
     } elsif ($altseq ne '.') { # $size == 0 and the genotype is not 0/0
         ($svtype, $svsize) = (length($altseq) == 1) ?
-                             ("4.SNP", length($altseq)):
-                             ("3.MNP", length($altseq)); # May useless here
+                             ("SNP", length($altseq)):
+                             ("MNP", length($altseq)); # May useless here
     } else {
-        ($svtype, $svsize) = ("9.REF", length($refseq));
+        ($svtype, $svsize) = ("REF", length($refseq));
     }
 
 #print STDERR "[Debug] GetSVtypeAndSize(): ($refseq, $altseq, $initSVsize, $initSVtype): size = $size :($svtype, $svsize)\n";
@@ -102,15 +102,15 @@ sub GetGATKSVtypeAndSizeForSample {
     my ($svtype, $svsize);
 
     if ($size > 0) { # Insertion
-        ($svtype, $svsize) = ("1.INS", abs($size));
+        ($svtype, $svsize) = ("INS", abs($size));
     } elsif ($size < 0) { # Deletion
-        ($svtype, $svsize) = ("2.DEL", abs($size));
+        ($svtype, $svsize) = ("DEL", abs($size));
     } elsif ($altseq ne '.') { # $size == 0 and the genotype is not 0/0
         ($svtype, $svsize) = (length($altseq) == 1) ? 
-                             ("4.SNP", length($altseq)): 
-                             ("3.MNP", length($altseq));
+                             ("SNP", length($altseq)): 
+                             ("MNP", length($altseq));
     } else {
-        ($svtype, $svsize) = ("9.REF", length($refseq));
+        ($svtype, $svsize) = ("REF", length($refseq));
     }
 
     return ($svtype, $svsize);

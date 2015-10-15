@@ -52,7 +52,7 @@ sub Output {
             next;
         } elsif (/^#CHROM/) {
             print "##INFO=<ID=SPN,Number=1,Type=Integer,Description=\"The count of assambly which support this variant region\">\n";
-            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. This is the final type instead of 'VT' in FORMAT field.\">\n";
+            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. 'VT' in FORMAT field will been replaced by this if 'VT' is indel.\">\n";
             print; 
             chomp;
             my @t = split;
@@ -89,10 +89,18 @@ sub Output {
 
         my $reflen = length($col[3]);
         my $altlen = length((split(',', $col[4]))[0]);
-        if ($svtype eq 'INDEL' and $reflen == 1) {
+        if ($svtype eq 'INDEL' and $reflen < $altlen) {
             $svtype = 'INS';
-        } elsif ($svtype eq 'INDEL' and $altlen == 1) {
+        } elsif ($svtype eq 'INDEL') {
             $svtype = 'DEL';
+        }
+
+        for (my $i = 9; $i < @col; ++$i) { # Updata sample 'VT' and 'VS'
+            my @sam = split /:/, $col[$i];
+            next if $format{VT} >= @sam or $format{VS} >= @sam;
+            $sam[$format{VT}] = $svtype if $sam[$format{VT}] =~ m/INS|DEL/;
+            $sam[$format{VS}] = $svsize; 
+            $col[$i] = join ":", @sam;
         }
 
         $col[7] =~ s/;SPN=[^;]+//g;
@@ -131,8 +139,8 @@ sub Output {
         print join "\t", @col; print "\n";
 
         # Record information for summary output
-        Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
-                $svtype, $format{QR}, @col[9..$#col]) if $col[6] eq 'PASS';
+        # Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
+        #        $svtype, $format{QR}, @col[9..$#col]) if $col[6] eq 'PASS';
     }
 
     my $rf = sprintf "%.3f", $false/$total;
@@ -144,12 +152,12 @@ sub Output {
     print STDERR "** The whole set of variants in VCF: $n\n";
     print STDERR "** The number of useful variants   : $total ($tr)\n";
     print STDERR "** PASS variants   : $pass ($rp)\n";
-    print STDERR "** q$qualityThd variants     : $lowQ ($rl)\n";
+    print STDERR "** q$qualityThd variants: $lowQ ($rl)\n";
     print STDERR "** FALSE variants  : $false ($rf)\n";
     print STDERR "** DUPLIC variants : $duplic ($rd)\n\n";
 
-    OutputSummary(\%allsvtype, \%summary);
-
+    # Ignore summary.
+    #OutputSummary(\%allsvtype, \%summary);
     return;
 }
 
@@ -217,7 +225,7 @@ sub SetValueToSummary {
         $$record = [0, 0, $svsize, $svsize];
     }
 
-    $$record->[0] ++;         # sv number
+    $$record->[0] ++; # sv number
     $$record->[1] += $svsize; # add all the svsize up
     $$record->[2]  = $svsize if $svsize < $$record->[2]; # MIN
     $$record->[3]  = $svsize if $svsize > $$record->[3]; # MAX
