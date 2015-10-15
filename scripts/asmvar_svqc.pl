@@ -97,8 +97,10 @@ sub Output {
 
         for (my $i = 9; $i < @col; ++$i) { # Updata sample 'VT' and 'VS'
             my @sam = split /:/, $col[$i];
-            $sam[$format{VS}] = $svsize; 
+            next if $format{VT} >= @sam or $format{VS} >= @sam;
             $sam[$format{VT}] = $svtype if $sam[$format{VT}] =~ m/INS|DEL/;
+            $sam[$format{VS}] = $svsize; 
+            $col[$i] = join ":", @sam;
         }
 
         $col[7] =~ s/;SPN=[^;]+//g;
