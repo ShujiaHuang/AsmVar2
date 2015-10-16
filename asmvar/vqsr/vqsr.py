@@ -118,13 +118,12 @@ def main(opt):
            vcfinfo['VQ'] = 'VQ=' + str(d.lod)
            vcfinfo['CU'] = 'CU=' + annoTexts[d.worstAnnotation]
 
-           for text in annoTexts: 
-               if text not in vcfinfo: 
-                    vcfinfo[text] = (text + '=' + 
-                                     str('%.2f' % d.raw_annotations[idx[text]]))
-           if opt.pedfile and 'InbCoeff' in annoTexts:
+           for k, v in d.raw_annotations.items(): 
+               if k not in vcfinfo: 
+                    vcfinfo[k] = k + '=' + str('%.2f' % v)
+           if opt.pedfile and 'InbCoeff' in d.raw_annotations:
                # It's update the inbreeding coefficient
-               vcfinfo['InbCoeff'] = 'InbCoeff=%.2f' % d.raw_annotations[idx['InbCoeff']]
+               vcfinfo['InbCoeff'] = 'InbCoeff=%.2f' % d.raw_annotations['InbCoeff']
 
            col[7] = ';'.join(sorted(vcfinfo.values()))
            if d.lod < 0: d.lod = 0 # QUAL: donot allow value below 0

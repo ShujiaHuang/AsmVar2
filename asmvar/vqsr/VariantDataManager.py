@@ -31,11 +31,7 @@ class VariantDataManager:
         self.VRAC = VRAC.VariantRecalibratorArgumentCollection()
         self.annotationMean = None
         self.annotationSTD  = None
-        self.annoTexts      = [['InbCoeff', 'Float', 'Inbreeding coeff-'
-                                'icient as estimated from the genotype likeli-'
-                                'hoods per-sample when compared against the '
-                                'Hardy-Weinberg expectation'], \
-                               ['NRatio', 'Float', 'N ratio of ALT sequence'],\
+        self.annoTexts      = [['NR', 'Float', 'N ratio of ALT sequence'],\
                                ['HR', 'Integer', 'Homozygous run'], \
                                ['FS', 'Float', 'Phred-scaled p-value using '
                                 'Fisher\'s exact test to detect strand bias']]
@@ -52,7 +48,7 @@ class VariantDataManager:
 
     def SetData(self, data):
 
-        if not isinstance(data[0],vd.VariantDatum): 
+        if not isinstance(data[0], vd.VariantDatum): 
             raise ValueError('[ERROR] The data type should be "VariantDatum" '
                              'in VariantDataManager(),but found %s' % 
                              str(type(data[0])))
@@ -256,8 +252,11 @@ def LoadDataSet(vcfInfile, traningSet, pedFile = None):
             if not atleastone: continue 
 
             datum = vd.VariantDatum()
-            datum.raw_annotations = [inbCoeff, nratio, hom_run, fs]
-            datum.annotations  = [inbCoeff, nratio, hom_run, fs]
+            datum.raw_annotations = dict(InbCoeff = inbCoeff, 
+                                         NR = nratio, 
+                                         HR = hom_run, 
+                                         FS = fs)
+            datum.annotations  = [nratio, hom_run, fs]
             datum.variantOrder = col[0] + ':' + col[1]
             if datum.variantOrder in traningSet: 
                 datum.atTrainingSite = True
