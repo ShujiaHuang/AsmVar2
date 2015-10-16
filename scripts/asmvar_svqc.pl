@@ -303,7 +303,7 @@ sub LoadVarRegFromVcf {
 
         # '-1' is Mark for delete if too much 'N', or inb is not in (-.7, .7)
         # my $ma = ($nr > 0.5 or $inb <= -0.7 or $inb >= 0.7) ? -1: 0;
-        my $ma = ($nr > 0.5) ? -1: 0;
+        my $ma = ($nr > 0.5 or $inb <= -0.9 or $inb >= 0.9) ? -1: 0;
         my $vq = $t[5]; # Get variant score
         push(@$info, [$ma, $nr, $vq, $asmNum, $nummap, $svtype, 
                       $svsize, $tId, $tStart, $tEnd, @t[0,1]]);
