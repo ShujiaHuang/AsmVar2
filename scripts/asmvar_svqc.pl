@@ -124,11 +124,11 @@ sub Output {
         } elsif ($mark == 1 and $vq > $qualityThd) {
 
             $col[6] = 'PASS';
-        } elsif ($vq > $qualityThd) {
+        } elsif ($vq > $qualityThd) { # $mark == 0
 
             $col[6] = 'PASS';
         } else {
-        # Low Quality variant score
+            # Low Quality variant score
             $col[6] = "q$qualityThd";
         }
 
@@ -302,7 +302,8 @@ sub LoadVarRegFromVcf {
         }
 
         # '-1' is Mark for delete if too much 'N', or inb is not in (-.7, .7)
-        my $ma = ($nr > 0.5 or $inb <= -0.7 or $inb >= 0.7) ? -1: 0;
+        # my $ma = ($nr > 0.5 or $inb <= -0.7 or $inb >= 0.7) ? -1: 0;
+        my $ma = ($nr > 0.5) ? -1: 0;
         my $vq = $t[5]; # Get variant score
         push(@$info, [$ma, $nr, $vq, $asmNum, $nummap, $svtype, 
                       $svsize, $tId, $tStart, $tEnd, @t[0,1]]);
@@ -370,8 +371,8 @@ sub FindBestInSingleVariant {
     }
     my $bs = (sort{$a<=>$b} %{$hash{$bk}{$bt}})[0];
 
-# I can do it here after genotyping process, but Donot random select 
-# befroe that or we'll catch format error in SVGenotype
+    # I can do it here after genotyping process, but Donot random select 
+    # befroe that or we'll catch format error in SVGenotype
     my $acbI = int(rand(scalar(@{$hash{$bk}{$bt}{$bs}}))); # my $acbI = 0;
 
     return (@{$hash{$bk}{$bt}{$bs}->[$acbI]}, $asmNum);
@@ -466,7 +467,7 @@ sub Rm {
 
         next if $$info[$j][0] == -1;
         if (@leftIndex > 0) {
-# keep the highest quality variants here
+            # keep the highest quality variants here
             if ($$info[$j][2] > $$info[$leftIndex[0]][2]) {
                 $$info[$_][0] = ($$info[$_][1] == 0.0) ? -2 : -1 for (@leftIndex); # Mark for delete!!
                     @leftIndex = ($j);
@@ -500,7 +501,6 @@ sub Rm {
             $e = $$info[$j][$eI] if ($$info[$j][$eI] > $e)
         }
     }
-#my $am = (scalar(keys %bI) > 1) ? 1: 0;
 
     @leftIndex = ();
     for my $j (@index) {
@@ -509,12 +509,11 @@ sub Rm {
     }
     $$info[$leftIndex[0]][0] = 1 if @leftIndex > 0; # Duplication but PASS
 
-# Others treat to DUPLIC
+    # Others treat to DUPLIC
     for (my $i = 1; $i < @leftIndex; ++$i) {
         my $j = $leftIndex[$i];
         $$info[$j][0] = ($$info[$j][1] == 0.0) ? -2: -1;
     }
-#    StatisticOverlap($info, @index) if (@index > 1);
 }
 
 sub StatisticOverlap {
