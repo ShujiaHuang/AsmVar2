@@ -10,6 +10,7 @@ use Getopt::Long;
 use File::Basename qw/dirname/; 
 use lib dirname($0)."/lib";
 use AsmvarVCFtools;
+use AsmvarCommon;
 
 die qq/
 Usage : perl $0 <command> [<arguments>] \n
