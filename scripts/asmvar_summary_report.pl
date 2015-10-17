@@ -213,7 +213,8 @@ Author : Shujia Huang
         my @mult = split /,/, $col[4];
         ++$filterStatistic{PASS_MultiAllelic} if @mult > 1 and $col[6] eq 'PASS';
 
-        my $popsvtype = AsmvarVCFtools::GetDataInSpInfo('SVTYPE', \$col[7]); # Get SVTYPE
+        my $popsvtype = AsmvarVCFtools::GetDataInSpInfo('SVTYPE', \$col[7]);
+        my $popsvsize = AsmvarVCFtools::GetDataInSpInfo('SVSIZE', \$col[7]);
         $popsvtype = 'TRANS' if $popsvtype =~ m/TRANS/;
         # Record information for summary output
         _SummarySV($isgatkvcf, # GATK VCF or not!
@@ -222,6 +223,7 @@ Author : Shujia Huang
                    @col[3,4], 
                    \%col2sam,
 				   $popsvtype,
+                   $popsvsize,
                    $format{VS}, 
                    $format{VT}, 
                    $format{QR}, 
@@ -251,6 +253,7 @@ sub _SummarySV {
         $altseq, 
         $col2sam,
 	    $popsvtype,	
+        $popsvsize,
         $vsIndex, 
         $vtIndex, 
         $qrIndex, 
@@ -297,11 +300,11 @@ sub _SummarySV {
                     $seq[0],     # Ref-sequence
                     $seq[$ai],   # Alt-sequence
                     $tmp_size,   # svsize
-                    (split /#/, $popsvtype)[0]); # Split '#',in case of 'TRANS'
+                    $popsvtype);
             }
         }
  
-        $svtype = 'TRANS' if $popsvtype =~ m/TRANS/;
+        $svtype = 'TRANS' if $svtype =~ m/TRANS/;
         _SetValueToSummary(\$$numSpectrum{$sampleId}{$svtype}, $svsize);
         _SetValueToSummary(\$$numSpectrum{$sampleId}{'0.Total'}, $svsize)
             if $svtype !~ /REF/;
@@ -323,19 +326,17 @@ sub _SummarySV {
     }
     return if $isempty;
 
-#my ($totalsvtype, $totalsvsize) = AsmvarVCFtools::GetSVforAllPerVariantLine(\%svstat);
-    my ($totalsvtype, $totalsvsize) = ($popsvtype, $svsize);
-    _SetValueToSummary(\$$numSpectrum{'~Population'}{$totalsvtype}, 
-                        $totalsvsize);
+#my ($popsvtype, $popsvsize) = AsmvarVCFtools::GetSVforAllPerVariantLine(\%svstat);
+    _SetValueToSummary(\$$numSpectrum{'~Population'}{$popsvtype}, 
+                       $popsvsize);
     _SetValueToSummary(\$$numSpectrum{'~Population'}{'0.Total'}, 
-                        $totalsvsize) if $totalsvtype !~ /REF/;
+                       $popsvsize) if $popsvtype !~ /REF/;
     # Don't include 'REF_OR_SNP' when calculate total.
-    if ($totalsvtype !~ /REF/ and $totalsvtype !~ /SNP/) {
+    if ($popsvtype !~ /REF/ and $popsvtype !~ /SNP/) {
 
         # Calculate non-snp variants' size spectrum
-        my $bin = AsmvarCommon::SizeBinSp($totalsvsize);
-        #my $bin = AsmvarCommon::SizeBin($totalsvsize, 10);
-        $$sizeSpectrum{'~Population'}{$totalsvtype}{$bin} ++; #Just for Variant
+        my $bin = AsmvarCommon::SizeBinSp($popsvsize);
+        $$sizeSpectrum{'~Population'}{$popsvtype}{$bin} ++; #Just for Variant
         $$sizeSpectrum{'~Population'}{'ALLSV'}{$bin} ++; # For all Variant
     }
 

@@ -143,7 +143,7 @@ sub Output {
 
         # Record information for summary output
         Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
-                $svtype, $format{VT}, @col[9..$#col]) if $col[6] eq 'PASS';
+                $svtype, $svsize, $format{VT}, @col[9..$#col]) if $col[6] eq 'PASS';
     }
 
     my $rf = sprintf "%.3f", $false/$total;
@@ -167,7 +167,7 @@ sub Output {
 sub Summary {
     # Calculate the number and length in different SV types for each variant
     my ($summary, $allsvtype, $refseq, $altseq, $col2sam, 
-        $svtype, $svtIndex, @samples) = @_;
+        $popsvtype, $popsvsize, $svtIndex, @samples) = @_;
 
     my @seq = ($refseq); # First element is REF: [0]=>REF
     push @seq, $_ for (split /,/, $altseq);
@@ -183,6 +183,7 @@ sub Summary {
         # If the sample could be genotype here 
         # than we'd better to get the SV
         next if $f[0] =~ /\./ or $f[0] eq '0/0';
+        my $svtype = $popsvtype;
         if (@f > $svtIndex and $f[$svtIndex] ne '.') {
             $svtype = (split /#/, uc $f[$svtIndex])[0]; # re-set svtype
         }
@@ -208,12 +209,9 @@ sub Summary {
     $$allsvtype{'0.Total'} = 1;
     return if $isempty;
 
-    my ($totalsvtype, $totalsvsize) = 
-        AsmvarVCFtools::GetSVforAllPerVariantLine(\%svstat);
-    
-    SetValueToSummary(\$$summary{'~Population'}{$totalsvtype}, $totalsvsize);
-    if ($totalsvtype !~ /REF_OR_SNP/) { # Don't include such type when calculate total.
-        SetValueToSummary(\$$summary{'~Population'}{'0.Total'}, $totalsvsize);
+    SetValueToSummary(\$$summary{'~Population'}{$popsvtype}, $popsvsize);
+    if ($popsvtype !~ /REF_OR_SNP/) { # Don't include such type when calculate total.
+        SetValueToSummary(\$$summary{'~Population'}{'0.Total'}, $popsvsize);
     }
 
     return;
