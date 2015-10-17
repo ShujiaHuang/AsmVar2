@@ -52,7 +52,8 @@ sub Output {
             next;
         } elsif (/^#CHROM/) {
             print "##INFO=<ID=SPN,Number=1,Type=Integer,Description=\"The count of assambly which support this variant region\">\n";
-            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. 'VT' in FORMAT field will been replaced by this if 'VT' is indel.\">\n";
+            print "##INFO=<ID=SVSIZE,Number=1,Type=String,Description=\"The SV size of this variant.\">\n";
+            print "##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"The SV type of this variant. 'VT' in FORMAT field will been replaced by this if 'VT' is indel or REFCALL.\">\n";
             print; 
             chomp;
             my @t = split;
@@ -89,23 +90,25 @@ sub Output {
 
         my $reflen = length($col[3]);
         my $altlen = length((split(',', $col[4]))[0]);
-        if ($svtype eq 'INDEL' and $reflen < $altlen) {
+        if (($svtype eq 'INDEL' or $svtype eq 'REFCALL') and $reflen < $altlen) {
             $svtype = 'INS';
-        } elsif ($svtype eq 'INDEL') {
+        } elsif ($svtype eq 'INDEL' or $svtype eq 'REFCALL') {
             $svtype = 'DEL';
         }
 
         for (my $i = 9; $i < @col; ++$i) { # Updata sample 'VT' and 'VS'
             my @sam = split /:/, $col[$i];
             next if $format{VT} >= @sam or $format{VS} >= @sam;
-            $sam[$format{VT}] = $svtype if $sam[$format{VT}] =~ m/INS|DEL/;
+            $sam[$format{VT}] = $svtype if ($sam[$format{VT}] !~ /TRANS/ and $sam[$format{VT}] =~ m/INS|DEL/) or ($sam[$format{VT}] eq 'REFCALL');
             $sam[$format{VS}] = $svsize; 
             $col[$i] = join ":", @sam;
         }
 
         $col[7] =~ s/;SPN=[^;]+//g;
+        $col[7] =~ s/;SVSIZE=[^;]+//g;
         $col[7] =~ s/;SVTYPE=[^;]+//g;
         $col[7] .= ";SPN=$asmNum";
+        $col[7] .= ";SVSIZE=$svsize";
         $col[7] .= ";SVTYPE=$svtype";
 
 # For the $mark's detail:
@@ -140,7 +143,7 @@ sub Output {
 
         # Record information for summary output
         Summary(\%summary, \%allsvtype, @col[3,4], \%col2sam,
-                $svtype, $format{QR}, @col[9..$#col]) if $col[6] eq 'PASS';
+                $svtype, $format{VT}, @col[9..$#col]) if $col[6] eq 'PASS';
     }
 
     my $rf = sprintf "%.3f", $false/$total;
@@ -164,9 +167,8 @@ sub Output {
 sub Summary {
     # Calculate the number and length in different SV types for each variant
     my ($summary, $allsvtype, $refseq, $altseq, $col2sam, 
-        $svtype, $qrIndex, @samples) = @_;
+        $svtype, $svtIndex, @samples) = @_;
 
-    $svtype = 'TRANS' if $svtype =~ /TRANS/;
     my @seq = ($refseq); # First element is REF: [0]=>REF
     push @seq, $_ for (split /,/, $altseq);
 
@@ -180,8 +182,11 @@ sub Summary {
         # Did not have genotype
         # If the sample could be genotype here 
         # than we'd better to get the SV
-        next if $f[0] eq './.' or $f[0] eq '0/0';
-
+        next if $f[0] =~ /\./ or $f[0] eq '0/0';
+        if (@f > $svtIndex and $f[$svtIndex] ne '.') {
+            $svtype = (split /#/, uc $f[$svtIndex])[0]; # re-set svtype
+        }
+        $svtype = 'TRANS' if $svtype =~ /TRANS/;
         #Get the ALT sequence index
         my $ai = AsmvarVCFtools::GetAltIdxByGTforSample($f[0]); # Get the ALT sequence index
         my $svsize = abs(length($seq[$ai]) - length($seq[0]));
@@ -292,12 +297,14 @@ sub LoadVarRegFromVcf {
         my $inb= AsmvarVCFtools::GetDataInSpInfo('InbCoeff', \$t[7]); # Get InbCoeff
         my $nr = AsmvarVCFtools::GetDataInSpInfo('NR', \$t[7]);  
 
+        my @seq = ($t[3]); # First element is REF: [0]=>REF  
+        push @seq, $_ for (split /,/, $t[4]); 
         my ($svtype, $svsize, $tId, $tStart, $tEnd, $asmNum) = 
             FindBestInSingleVariant($format{TR}, $format{QR}, $format{VT},
-                                    $format{VS}, $nr, @t[9..$#t]);
-
+                                    $nr, \@seq, @t[9..$#t]);
+ 
         if ($tEnd - $tStart < 10) {
-            $tStart -= 5; $tStart = 1 if ($tStart < 0);
+            $tStart -= 5; $tStart = 1 if $tStart < 0;
             $tEnd   += 5;
         }
 
@@ -314,7 +321,7 @@ sub LoadVarRegFromVcf {
 
 sub FindBestInSingleVariant {
 
-    my ($trIndex, $qrIndex, $svtIndex, $svsIndex, $nr, @sample) = @_;
+    my ($trIndex, $qrIndex, $svtIndex, $nr, $seq, @sample) = @_;
 
     my ($tId, $tStart, $tEnd, $svtype, $svsize);
     my %hash;
@@ -326,10 +333,15 @@ sub FindBestInSingleVariant {
 
         # ignore the FORMAT just have './.'
         ++$asmNum if ((@f >= $qrIndex + 1) and ($f[$qrIndex] ne '.'));
-        next if $f[0] eq './.' or $f[$qrIndex] eq '.'; 
+        next if $f[0] =~ m/\./ or $f[$qrIndex] eq '.'; 
+
+        # Get the ALT sequence index and set svsize 
+        my $ai = AsmvarVCFtools::GetAltIdxByGTforSample($f[0]);
+        $svsize = abs(length($$seq[$ai]) - length($$seq[0]));
+        $svsize = length($$seq[$ai]) if $svsize == 0;
+        $svsize = length($$seq[$ai]) if length($$seq[$ai]) > 1 and length($$seq[0]) > 1;
 
         my $original_svtype = (split /#/, uc($f[$svtIndex]))[0];  # SV Type
-        $svsize = abs $f[$svsIndex]; # SV Size
         if ($original_svtype =~ m/TRANS/) {
             $svtype = 'TRANS';
         } elsif ($original_svtype =~ m/INS|DEL/) {
@@ -351,8 +363,14 @@ sub FindBestInSingleVariant {
             $sI = $sam;
         }
         my @f = split /:/, $sample[$sI];
+        # Get the ALT sequence index and set svsize 
+        my $ai = $f[0] !~ /\./ ? AsmvarVCFtools::GetAltIdxByGTforSample($f[0]) : 1;
+        my $svsize = abs(length($$seq[$ai]) - length($$seq[0]));
+        $svsize = length($$seq[$ai]) if $svsize == 0;
+        $svsize = length($$seq[$ai]) if length($$seq[$ai]) > 1 and length($$seq[0]) > 1;
+
         return ((split /#/, uc($f[$svtIndex]))[0], 
-                $f[$svsIndex], 
+                $svsize, 
                 (split /[=\-]/, $f[$trIndex]), 
                 $asmNum);
     }
@@ -361,6 +379,8 @@ sub FindBestInSingleVariant {
     my $bt; # Best SV-Type
     if (exists $hash{$bk}{INDEL}     ) {
         $bt = 'INDEL';
+    } elsif (exists $hash{$bk}{MNP}  ) {
+        $bt = 'MNP';
     } elsif (exists $hash{$bk}{TRANS}) {
         $bt = 'TRANS';
     } elsif (exists $hash{$bk}{INV}  ) {

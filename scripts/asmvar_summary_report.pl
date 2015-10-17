@@ -297,7 +297,7 @@ sub _SummarySV {
                     $seq[0],     # Ref-sequence
                     $seq[$ai],   # Alt-sequence
                     $tmp_size,   # svsize
-                    (split /,/, $popsvtype)[0]); # Split '#',in case of 'TRANS'
+                    (split /#/, $popsvtype)[0]); # Split '#',in case of 'TRANS'
             }
         }
  
