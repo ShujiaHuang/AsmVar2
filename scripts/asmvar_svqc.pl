@@ -67,7 +67,6 @@ sub Output {
         chomp;
 
         ++$n;
-##[$mark, $nr, $vq, $asmNum, $nummap, $svtype, $svsize, $tId, $tStart, $tEnd, @t]
         my $mark   = $$info[$i][0];
         my $bestNR = $$info[$i][1];
         my $vq     = $$info[$i][2];
@@ -99,7 +98,11 @@ sub Output {
         for (my $i = 9; $i < @col; ++$i) { # Updata sample 'VT' and 'VS'
             my @sam = split /:/, $col[$i];
             next if $format{VT} >= @sam or $format{VS} >= @sam;
-            $sam[$format{VT}] = $svtype if ($sam[$format{VT}] !~ /TRANS/ and $sam[$format{VT}] =~ m/INS|DEL/) or ($sam[$format{VT}] eq 'REFCALL');
+            if (($sam[$format{VT}] !~ /TRANS/ and $sam[$format{VT}] =~ m/INS|DEL/) or 
+                ($sam[$format{VT}] eq 'INTRAGAP' and $bestNR == 0.0) or 
+                $sam[$format{VT}]  eq 'REFCALL') {
+                $sam[$format{VT}] = $svtype;
+            }
             $sam[$format{VS}] = $svsize; 
             $col[$i] = join ":", @sam;
         }
@@ -309,6 +312,7 @@ sub LoadVarRegFromVcf {
         # '-1' is Mark for delete if too much 'N', or inb is not in (-.7, .7)
         my $ma = ($nr >= 0.5 or $inb <= -0.7 or $inb >= 0.7) ? -1: 0;
         my $vq = $t[5]; # Get variant score
+
         push(@$info, [$ma, $nr, $vq, $asmNum, $nummap, $svtype, 
                       $svsize, $tId, $tStart, $tEnd, @t[0,1]]);
     }
@@ -331,12 +335,12 @@ sub FindBestInSingleVariant {
 
         # ignore the FORMAT just have './.'
         ++$asmNum if ((@f >= $qrIndex + 1) and ($f[$qrIndex] ne '.'));
-        next if $f[0] =~ m/\./ or $f[$qrIndex] eq '.'; 
+        next if $f[0] =~ m/\./ or $f[0] eq '0/0' or @f < $qrIndex + 1 or $f[$qrIndex] eq '.'; 
 
         # Get the ALT sequence index and set svsize 
         my $ai = AsmvarVCFtools::GetAltIdxByGTforSample($f[0]);
         $svsize = abs(length($$seq[$ai]) - length($$seq[0]));
-        $svsize = length($$seq[$ai]) if $svsize == 0;
+        $svsize = length($$seq[$ai]) if $svsize == 0 and length($$seq[$ai]) > 1;
         $svsize = length($$seq[$ai]) if length($$seq[$ai]) > 1 and length($$seq[0]) > 1;
 
         my $original_svtype = (split /#/, uc($f[$svtIndex]))[0];  # SV Type
@@ -345,6 +349,9 @@ sub FindBestInSingleVariant {
         } elsif ($original_svtype =~ m/INS|DEL/) {
             $svtype = 'INDEL';
             $original_svtype = 'INDEL'; # I'll re-fined the type by the size of 'REF' and 'ALT' when output. 
+        } elsif ($original_svtype eq 'INTRAGAP' and $nr == 0.0) {
+            $svtype = 'INDEL';
+            $original_svtype = 'INDEL'; 
         } else {
             $svtype = $original_svtype;
         }
@@ -362,12 +369,14 @@ sub FindBestInSingleVariant {
         }
         my @f = split /:/, $sample[$sI];
         # Get the ALT sequence index and set svsize 
-        my $ai = $f[0] !~ /\./ ? AsmvarVCFtools::GetAltIdxByGTforSample($f[0]) : 1;
+        my $ai = ($f[0] !~ /\./ and $f[0] ne '0/0') ? AsmvarVCFtools::GetAltIdxByGTforSample($f[0]) : 1;
         my $svsize = abs(length($$seq[$ai]) - length($$seq[0]));
-        $svsize = length($$seq[$ai]) if $svsize == 0;
+        $svsize = length($$seq[$ai]) if $svsize == 0 and length($$seq[$ai]) > 1;
         $svsize = length($$seq[$ai]) if length($$seq[$ai]) > 1 and length($$seq[0]) > 1;
 
-        return ((split /#/, uc($f[$svtIndex]))[0], 
+        my $svtype = (split /#/, uc($f[$svtIndex]))[0];
+        $svtype = 'INDEL' if $svtype eq 'INTRAGAP' and $nr == 0.0;
+        return ($svtype, 
                 $svsize, 
                 (split /[=\-]/, $f[$trIndex]), 
                 $asmNum);
