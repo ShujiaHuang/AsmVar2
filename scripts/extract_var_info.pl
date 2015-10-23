@@ -25,7 +25,8 @@ while (<I>) {
         print join("\t", @col[0,1,3,4], "SVTYPE\tSVSIZE", @col[9..$#col]), "\n";
     } else {
         my @col = split;
-        next if $col[6] eq 'PASS';
+        next if $col[6] ne 'PASS';
+
         my $svtype = AsmvarVCFtools::GetDataInSpInfo('SVTYPE', \$col[7]); 
         my $svsize = AsmvarVCFtools::GetDataInSpInfo('SVSIZE', \$col[7]); 
         for (my $i = 9; $i < @col; ++$i) {
